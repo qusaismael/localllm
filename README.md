@@ -2,6 +2,8 @@
 
 A simple Flask-based web GUI that enables local AI (LLMs) inference using [ollama](https://github.com/jmorganca/ollama) for model serving. This project is currently in **Alpha** phase and open to any contributions. Created by [@qusaismael](https://x.com/qusaismael).
 
+![image](https://github.com/user-attachments/assets/8c0d9b20-43bf-4d14-a916-e9baeaa65f33)
+
 ---
 
 ## Table of Contents
