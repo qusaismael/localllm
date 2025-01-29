@@ -1,18 +1,22 @@
-import subprocess
-import shutil
+import os
 import re
+import shutil
+import subprocess
+import logging
 import time
+
 from flask import Flask, request, render_template_string, Response, stream_with_context
 
-app = Flask(__name__)
+############################################
+# Configuration and Constants 
+############################################
 
-ollama_path = shutil.which("ollama")
-if not ollama_path:
-    ollama_path = "/usr/local/bin/ollama"
+# Ollama settings
+OLLAMA_PATH = shutil.which("ollama") or "/usr/local/bin/ollama"
+DEFAULT_MODEL = "deepseek-r1:14b"
 
-ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-
-available_models = [
+# Available models - customize this list as needed
+AVAILABLE_MODELS = [
     "deepseek-r1:14b",
     "deepseek-r1:8b",
     "qwen2.5:latest",
@@ -21,6 +25,72 @@ available_models = [
     "deepseek-r1:1.5b",
     "llama3.2:latest"
 ]
+
+# Server settings
+HOST = "0.0.0.0"  # Change to "localhost" for local-only access
+PORT = 5000
+DEBUG = False
+
+# UI settings
+MAX_RESPONSE_CHUNKS = 1000
+CHAT_WINDOW_HEIGHT = 500
+MAX_INPUT_HEIGHT = 200
+
+############################################
+# Logging Configuration
+############################################
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+############################################
+# Flask Application Setup
+############################################
+app = Flask(__name__)
+
+# ANSI escape sequence cleaner
+ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+
+############################################
+# Routes
+############################################
+
+@app.route("/health")
+def health_check():
+    """
+    Endpoint for monitoring system health.
+    Checks if Ollama is accessible.
+    """
+    try:
+        subprocess.run([OLLAMA_PATH, "--version"], capture_output=True, check=True)
+        return {"status": "healthy", "ollama": "accessible"}, 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return {"status": "unhealthy", "error": str(e)}, 503
+
+
+@app.route("/models")
+def list_models():
+    """
+    Endpoint to list available models by running:
+      ollama list
+    """
+    try:
+        result = subprocess.run([OLLAMA_PATH, "list"],
+                                capture_output=True,
+                                text=True,
+                                check=True)
+        return {"models": result.stdout.strip().split("\n")}, 200
+    except Exception as e:
+        logger.error(f"Failed to list models: {str(e)}")
+        return {"error": str(e)}, 500
+
+
+############################################
+# Main UI
+############################################
 
 html_template = """
 <!DOCTYPE html>
@@ -253,7 +323,6 @@ html_template = """
 
         // CODE BLOCKS
         text = text.replace(/```([\s\S]*?)```/gm, function(match, codeContent) {
-            // Because we already escaped the input, no real HTML can run here
             return `
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyToClipboard(\`${codeContent}\`)">Copy code</button>
@@ -298,9 +367,6 @@ html_template = """
         const assistantMsg = document.createElement("div");
         assistantMsg.classList.add("message", "assistant", "formatted-content");
         
-        // We'll build two sections:
-        // 1) Normal "formatted" content
-        // 2) A hidden "raw" part for chain-of-thought or debugging
         const assistantParagraph = document.createElement("p");
         assistantParagraph.innerHTML = "<span id='streamContent'></span><span class='streaming'>|</span>";
 
@@ -351,7 +417,6 @@ html_template = """
                 return;
             }
 
-            // Read the response body as a stream
             const reader = response.body.getReader();
             const decoder = new TextDecoder("utf-8");
             let partial = "";
@@ -364,13 +429,12 @@ html_template = """
                 const chunk = decoder.decode(value, { stream: true });
                 partial += chunk;
 
-                // The server emits lines that start with "data: "
                 let lines = partial.split(/\\r?\\n/);
-                partial = lines.pop();  // keep incomplete line in partial
+                partial = lines.pop();  // keep incomplete line
 
                 for (let line of lines) {
                     if (line.startsWith("data: ")) {
-                        let data = line.slice(6); // remove "data: "
+                        let data = line.slice(6); 
                         if (data === "[DONE]") {
                             assistantParagraph.querySelector('.streaming')?.remove();
                             break;
@@ -378,7 +442,6 @@ html_template = """
                             rawText += data + "\\n";
                             rawPre.textContent = rawText;
 
-                            // Escape the chunk so HTML won't render
                             let escapedChunk = escapeHtml(data);
                             let current = assistantParagraph
                                 .querySelector('#streamContent').innerHTML;
@@ -406,7 +469,7 @@ html_template = """
 
 @app.route("/")
 def index():
-    return render_template_string(html_template, models=available_models)
+    return render_template_string(html_template, models=AVAILABLE_MODELS)
 
 @app.route("/stream_chat", methods=["POST"])
 def stream_chat():
@@ -414,14 +477,13 @@ def stream_chat():
     prompt = data.get("prompt", "").strip()
     model = data.get("model", "").strip()
 
-    # Validate inputs
     if not prompt or not model:
         def error_gen():
             yield "data: Missing prompt or model.\n\n"
             yield "data: [DONE]\n\n"
         return Response(error_gen(), mimetype='text/event-stream')
 
-    if model not in available_models:
+    if model not in AVAILABLE_MODELS:
         def invalid_model_gen():
             yield f"data: Invalid model '{model}'.\n\n"
             yield "data: [DONE]\n\n"
@@ -430,7 +492,7 @@ def stream_chat():
     def sse_generator():
         try:
             with subprocess.Popen(
-                [ollama_path, "run", model],
+                [OLLAMA_PATH, "run", model],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -443,14 +505,13 @@ def stream_chat():
 
                 for line in proc.stdout:
                     clean_line = ansi_escape.sub('', line)
-                    # SSE line
                     if clean_line.strip():
                         yield f"data: {clean_line}\n\n"
 
                 err_output = proc.stderr.read()
                 return_code = proc.wait()
                 if return_code != 0:
-                    err_msg = (f"Ollama exited {return_code}.\n{err_output.strip()}")
+                    err_msg = f"Ollama exited {return_code}.\n{err_output.strip()}"
                     yield f"data: {err_msg}\n\n"
 
                 yield "data: [DONE]\n\n"
@@ -462,5 +523,10 @@ def stream_chat():
 
     return Response(stream_with_context(sse_generator()), mimetype='text/event-stream')
 
+
 if __name__ == "__main__":
-    app.run(debug=True, threaded=True)
+    logger.info(f"Starting server on {HOST}:{PORT}")
+    logger.info(f"Using Ollama path: {OLLAMA_PATH}")
+    logger.info(f"Available models: {AVAILABLE_MODELS}")
+
+    app.run(host=HOST, port=PORT, debug=DEBUG, threaded=True)
