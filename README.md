@@ -1,6 +1,6 @@
 # RUN AI Locally (GUI)
 
-A simple Flask-based web GUI that enables local AI (LLMs) inference using [ollama](https://github.com/jmorganca/ollama) for model serving. This project is currently in **Alpha** phase and open to any contributions. Created by [@qusaismael](https://x.com/qusaismael).
+A simple Flask-based web GUI that enables local AI (LLMs) inference using [ollama](https://github.com/ollama/ollama) for model serving. This project is currently in **Alpha** phase and open to any contributions. Created by [@qusaismael](https://x.com/qusaismael).
 
 ![image](https://github.com/user-attachments/assets/8c0d9b20-43bf-4d14-a916-e9baeaa65f33)
 
@@ -37,7 +37,7 @@ A simple Flask-based web GUI that enables local AI (LLMs) inference using [ollam
 
 - **ollama**  
   This code expects an `ollama` binary in your `PATH`, or installed in `/usr/local/bin/ollama`.  
-  [Install instructions here](https://github.com/jmorganca/ollama#installation).
+  [Install instructions here](https://github.com/ollama/ollama#installation).
 
 - **Memory/GPU Requirements**  
   Depending on the size of the model you plan to run, you may need substantial system memory (RAM) or a GPU that supports local inference:
