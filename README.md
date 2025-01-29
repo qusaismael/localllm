@@ -133,20 +133,9 @@ This project is open source, distributed under the [MIT License](./LICENSE). Fee
 
 ## References
 
-1. **Python Official Documentation**  
-   [https://www.python.org/doc/](https://www.python.org/doc/)
-
-2. **Flask Official Documentation**  
-   [https://flask.palletsprojects.com/](https://flask.palletsprojects.com/)
-
-3. **Subprocess Module** (Python)  
-   [https://docs.python.org/3/library/subprocess.html](https://docs.python.org/3/library/subprocess.html)
-
-4. **ollama**  
+- **ollama**  
    [https://github.com/jmorganca/ollama](https://github.com/jmorganca/ollama)
 
-5. **CUDA Toolkit (Optional GPU Acceleration)**  
-   [https://developer.nvidia.com/cuda-downloads](https://developer.nvidia.com/cuda-downloads)
 
 ---
 
