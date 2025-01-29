@@ -134,7 +134,7 @@ This project is open source, distributed under the [MIT License](./LICENSE). Fee
 ## References
 
 - **ollama**  
-   [https://github.com/jmorganca/ollama](https://github.com/jmorganca/ollama)
+   [https://github.com/ollama/ollama](https://github.com/ollama/ollama)
 
 
 ---
