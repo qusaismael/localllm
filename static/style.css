@@ -1,0 +1,211 @@
+/* Base Styles */
+body {
+    background-color: #343541;
+    color: #d1d5db;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    width: 80%;
+    margin: 20px auto;
+    max-width: 800px;
+}
+
+h1 {
+    color: #fff;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Model Selection Buttons */
+.model-buttons {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.model-buttons button {
+    background-color: #4f46e5;
+    color: #fff;
+    border: none;
+    padding: 10px 15px;
+    margin: 5px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.2s;
+}
+
+.model-buttons button:hover {
+    background-color: #4338ca;
+}
+
+/* Chat Window */
+.chat-window {
+    background-color: #444654;
+    padding: 15px;
+    border-radius: 10px;
+    height: 500px;
+    overflow-y: auto;
+}
+
+/* Message Bubbles */
+.message {
+    margin-bottom: 15px;
+}
+
+.message.user {
+    text-align: right;
+}
+
+.message.assistant {
+    text-align: left;
+}
+
+.message p {
+    background-color: #3c3f4d;
+    display: inline-block;
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 80%;
+    white-space: pre-wrap;
+    margin: 5px 0;
+}
+
+/* Code Blocks */
+.formatted-content pre,
+.formatted-content code {
+    background: #2b2b2b;
+    color: #f8f8f2;
+    border-radius: 5px;
+    font-family: "Courier New", Courier, monospace;
+}
+
+.formatted-content pre {
+    padding: 10px;
+    overflow: auto;
+    margin-bottom: 10px;
+    position: relative;
+}
+
+.code-block {
+    position: relative;
+    margin-bottom: 1em;
+}
+
+.copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #4f46e5;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background-color 0.2s;
+}
+
+.copy-btn:hover {
+    background-color: #4338ca;
+}
+
+/* Input Area */
+.input-area {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+}
+
+#userInput {
+    flex: 1;
+    padding: 10px;
+    border-radius: 5px;
+    border: none;
+    font-size: 1em;
+    resize: none;
+    height: 50px;
+    line-height: 1.2em;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #444654;
+    color: #d1d5db;
+}
+
+#sendBtn {
+    padding: 10px 20px;
+    background-color: #4f46e5;
+    border: none;
+    color: #fff;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#sendBtn:hover {
+    background-color: #4338ca;
+}
+
+/* Streaming Animation */
+.streaming {
+    animation: blinkingCursor 1.2s infinite;
+    margin-left: 2px;
+}
+
+@keyframes blinkingCursor {
+    0% { opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Raw Output Toggle */
+.raw-container {
+    margin-top: 10px;
+    display: none;
+    background: #2f2f3e;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.raw-container pre {
+    max-height: 200px;
+    overflow: auto;
+    background: #222;
+    color: #eee;
+    white-space: pre-wrap;
+    margin: 0;
+    padding: 10px;
+}
+
+.toggle-raw-btn {
+    background-color: #4f46e5;
+    border: none;
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    margin-top: 5px;
+    transition: background-color 0.2s;
+}
+
+.toggle-raw-btn:hover {
+    background-color: #4338ca;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        width: 95%;
+    }
+    
+    .model-buttons button {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+    
+    #userInput {
+        font-size: 0.9rem;
+    }
+}
