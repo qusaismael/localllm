@@ -1,5 +1,8 @@
 # RUN AI Locally (GUI)
 
+![Python Version](https://img.shields.io/badge/python-3.7%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 A simple Flask-based web GUI that enables local AI (LLMs) inference using [ollama](https://github.com/ollama/ollama) for model serving. This project is currently in **Alpha** phase and open to any contributions. Created by [@qusaismael](https://x.com/qusaismael).
 
 ![image](https://github.com/user-attachments/assets/8c0d9b20-43bf-4d14-a916-e9baeaa65f33)
@@ -11,133 +14,200 @@ A simple Flask-based web GUI that enables local AI (LLMs) inference using [ollam
 - [System Requirements & Recommendations](#system-requirements--recommendations)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Security Notice](#security-notice)
+- [Troubleshooting](#troubleshooting)
 - [Project Status](#project-status)
+- [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
+- [Acknowledgments](#acknowledgments)
 - [References](#references)
 
 ---
 
 ## Features
-- **Multiple Model Support**: Easily switch between different local LLM models (e.g., `deepseek-r1`, `qwen2.5`, `codellama`, etc.).
-- **Streaming Responses**: See tokens appear in real time using server-sent events (SSE).
-- **Markdown and Code Block Rendering**: Code blocks are properly highlighted, with a copy-to-clipboard feature.
-- **Raw Output Toggle**: For advanced debugging, see the raw text output of the model's response.
-- **Simple, Clean UI**: A minimalistic interface with a chat-like layout for easy conversation.
+- **Multiple Model Support**: Easily switch between different local LLM models (e.g., `deepseek-r1`, `qwen2.5`, `codellama`, etc.)
+- **Streaming Responses**: See tokens appear in real time using server-sent events (SSE)
+- **Markdown and Code Block Rendering**: Code blocks with syntax highlighting and copy-to-clipboard
+- **Raw Output Toggle**: Debug with raw text output visibility
+- **Cross-Platform**: Works on Windows, Linux, and macOS
+- **Keyboard Shortcuts**:
+  - **Shift+Enter**: New line
+  - **Enter**: Send message
 
 ---
 
 ## System Requirements & Recommendations
 
 - **Python 3.7+**  
-  Recommended to ensure compatibility with current Flask and Python libraries.
+  Required for Flask compatibility
 
-- **pip / venv** (Python package manager and virtual environment)  
-  For clean install and environment isolation.
+- **pip/venv**  
+  For dependency management and environment isolation
 
 - **ollama**  
-  This code expects an `ollama` binary in your `PATH`, or installed in `/usr/local/bin/ollama`.  
-  [Install instructions here](https://github.com/ollama/ollama#installation).
+  [Installation required](https://github.com/ollama/ollama#installation)  
+  Verify installation:
+  ```bash
+  ollama --version
 
-- **Memory/GPU Requirements**  
-  Depending on the size of the model you plan to run, you may need substantial system memory (RAM) or a GPU that supports local inference:
-  - For smaller models like `deepseek-r1:1.5b`, you can run on as little as 8 GB RAM (though 16 GB is recommended).
-  - Larger models, such as `llama3.2:latest` or `deepseek-r1:14b`, may require more RAM and a capable GPU for feasible inference speed.
-
-For advanced usage, you might want to check out:
-- [GPUs with CUDA Support](https://developer.nvidia.com/cuda-downloads) (for GPU-accelerated inference if your chosen LLM tooling supports it).
-- Enough disk space to store the model weights (model size can range from a few GBs to tens of GBs).
+- **Hardware**:
+  - **Minimum**: 8GB RAM (for smaller models)
+  - **Recommended**: 16GB+ RAM + NVIDIA GPU (for larger models)
+  - **Disk Space**: 10GB+ for model storage
 
 ---
 
 ## Installation
 
-1. **Clone the Repository**  
+1. **Clone Repository**
    ```bash
    git clone https://github.com/qusaismael/localllm.git
    cd localllm
    ```
-   
-2. **Create and Activate a Virtual Environment** (recommended)  
+
+2. **Setup Virtual Environment**
    ```bash
+   # Linux/macOS
    python3 -m venv venv
-   source venv/bin/activate  # On Linux/Mac
-   # or
-   venv\Scripts\activate     # On Windows
+   source venv/bin/activate
+
+   # Windows
+   python -m venv venv
+   venv\Scripts\activate
    ```
 
-3. **Install Flask**  
+3. **Install Dependencies**
    ```bash
-   pip install flask
+   pip install -r requirements.txt
    ```
 
-4. **Check ollama Availability**  
-   Make sure `ollama` is installed and in your `PATH`, or update the `ollama_path` variable in the script to match your installation.
+4. **Configure Ollama**
+   - Ensure Ollama is running:
+     ```bash
+     ollama serve
+     ```
+   - Download models first:
+     ```bash
+     ollama pull deepseek-r1:14b
+     ```
 
 ---
 
 ## Usage
 
-1. **Start the Flask Server**  
+1. **Start Server**
    ```bash
    python app.py
    ```
-   By default, it will run on `http://127.0.0.1:5000`.
+   Access at `http://localhost:5000`
 
-2. **Open in Browser**  
-   Go to [http://127.0.0.1:5000](http://127.0.0.1:5000) to see the GUI.
+2. **First-Time Setup**
+   - Select model from available options
+   - If models aren't listed, ensure they're downloaded via Ollama
 
-3. **Select a Model**  
-   Click on any of the model buttons to load your desired LLM. (Please ensure the model is actually available for `ollama`.)
+3. **Basic Operations**
+   - Type prompt & press Enter to send
+   - Toggle raw output for debugging
+   - Copy code blocks with one click
 
-4. **Enter a Prompt**  
-   Type your prompt in the text area and press **Send**.  
-   - **SHIFT + ENTER** for a new line within the same prompt.  
-   - **ENTER** to submit.
+---
 
-5. **View Responses**  
-   - **Formatted**: Renders basic Markdown.  
-   - **Raw Output**: Click “Show raw output” to see the chain-of-thought or debug logs.
+## Security Notice
+
+⚠️ **Important Security Considerations**:
+- Default binding: `0.0.0.0` (accessible on your network)
+- Not recommended for public internet exposure
+- No authentication layer implemented
+- Use firewall rules to restrict access if needed
+
+---
+
+## Troubleshooting
+
+**Common Issues**:
+
+1. **"Model not found" error**
+   ```bash
+   ollama pull <model-name>
+   ```
+
+2. **Port conflict**
+   Modify `PORT` variable in `app.py`
+
+3. **Slow responses**
+   - Try smaller models first
+   - Check system resource usage
+   - Ensure GPU acceleration is enabled if available
+
+4. **Windows path issues**
+   Update `OLLAMA_PATH` in `app.py` to your installation path
 
 ---
 
 ## Project Status
 
-- **Alpha Phase**: The project is functional but in early development.  
-- **Frequent Changes**: Expect some changes in the coming days.
+**Alpha Release**  
+Current version: 0.1.0
+
+Known Limitations:
+- No conversation history
+- Basic error handling
+- Limited model configuration
+
+---
+
+## Roadmap
+
+- [ ] Conversation history support
+- [ ] Model download UI
+- [ ] Docker support
+- [ ] System resource monitoring
 
 ---
 
 ## Contributing
 
-I warmly welcome contributions from the community!
+**Welcome!** Please follow these steps:
 
-1. **Fork** the repository.
-2. **Create a new branch** for your feature/fix.
-3. **Commit and push** to your branch.
-4. **Submit a Pull Request** describing your changes.
+1. Fork repository
+2. Create feature branch
+3. Submit PR with description
 
-Before submitting, please ensure:
-- Code is well-tested and linted.
-- Documentation is updated if needed.
+**Development Setup**:
+```bash
+pip install -r requirements-dev.txt
+pre-commit install
+```
 
-Any ideas, feature requests, or bug reports? Please [open an issue](https://github.com/qusaismael/localllm/issues)!
+**Guidelines**:
+- Follow PEP8 style
+- Add tests for new features
+- Update documentation accordingly
 
 ---
 
 ## License
 
-This project is open source, distributed under the [MIT License](./LICENSE). Feel free to modify and distribute, but please give proper attribution.
+MIT License - See [LICENSE](LICENSE) for details
+
+---
+
+## Acknowledgments
+
+- Built with [Flask](https://flask.palletsprojects.com/)
+- LLM backend by [Ollama](https://ollama.ai)
+- Inspired by the Open Source AI community
 
 ---
 
 ## References
 
-- **ollama**  
-   [https://github.com/ollama/ollama](https://github.com/ollama/ollama)
-
+- [Ollama Documentation](https://github.com/ollama/ollama)
+- [Flask Documentation](https://flask.palletsprojects.com/)
+- [CUDA Installation Guide](https://developer.nvidia.com/cuda-downloads)
 
 ---
 
-**Created by [@qusaismael](https://x.com/qusaismael).**  
-**Open Source. Contributions Welcome!**  
+**Created by [@qusaismael](https://x.com/qusaismael)**  
+**Open Source • Contributions Welcome!**
