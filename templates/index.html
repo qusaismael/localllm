@@ -1,370 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>RUN AI LOCALLY (GUI)</title>
-    <style>
-        body {
-            background-color: #343541; 
-            color: #d1d5db;
-            font-family: Arial, sans-serif;
-            margin: 0; 
-            padding: 0;
-        }
-        .container {
-            width: 80%;
-            margin: 20px auto;
-            max-width: 800px;
-        }
-        h1 {
-            color: #fff;
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .model-buttons {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .model-buttons button {
-            background-color: #4f46e5;
-            color: #fff;
-            border: none;
-            padding: 10px 15px;
-            margin: 5px;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-        .model-buttons button:hover {
-            background-color: #4338ca;
-        }
-        .chat-window {
-            background-color: #444654;
-            padding: 15px;
-            border-radius: 10px;
-            height: 500px;
-            overflow-y: auto;
-        }
-        .message {
-            margin-bottom: 15px;
-        }
-        .message.user {
-            text-align: right;
-        }
-        .message.assistant {
-            text-align: left;
-        }
-        /* Bubble styling */
-        .message p {
-            background-color: #3c3f4d;
-            display: inline-block;
-            padding: 10px;
-            border-radius: 10px;
-            max-width: 80%;
-            white-space: pre-wrap;
-        }
-        /* Code block styling */
-        .formatted-content pre, code {
-            background: #2b2b2b; 
-            color: #f8f8f2;
-            border-radius: 5px;
-            font-family: "Courier New", Courier, monospace;
-        }
-        .formatted-content pre {
-            padding: 10px; 
-            overflow: auto;
-            margin-bottom: 10px;
-        }
-        .code-block {
-            position: relative;
-            margin-bottom: 1em;
-        }
-        .copy-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background-color: #4f46e5;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 5px 8px;
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
-        .copy-btn:hover {
-            background-color: #4338ca;
-        }
-        .input-area {
-            margin-top: 10px;
-            display: flex;
-        }
-        #userInput {
-            flex: 1;
-            padding: 10px;
-            border-radius: 5px;
-            border: none;
-            font-size: 1em;
-            resize: none;
-            height: 50px;
-            line-height: 1.2em;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        #sendBtn {
-            padding: 10px;
-            background-color: #4f46e5;
-            border: none;
-            color: #fff;
-            border-radius: 5px;
-            margin-left: 10px;
-            cursor: pointer;
-        }
-        #sendBtn:hover {
-            background-color: #4338ca;
-        }
-
-        .streaming {
-            animation: blinkingCursor 1.2s infinite;
-        }
-        @keyframes blinkingCursor {
-            0% { opacity: 0; }
-            50% { opacity: 1; }
-            100% { opacity: 0; }
-        }
-        /* Raw-output toggle */
-        .raw-container {
-            margin-top: 10px;
-            display: none;
-            background: #2f2f3e;
-            padding: 10px;
-            border-radius: 4px;
-        }
-        .raw-container pre {
-            max-height: 200px;
-            overflow: auto;
-            background: #222;
-            color: #eee;
-            white-space: pre-wrap;
-        }
-        .toggle-raw-btn {
-            background-color: #4f46e5;
-            border: none;
-            color: #fff;
-            padding: 5px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.75rem;
-            margin-top: 5px;
-        }
-        .toggle-raw-btn:hover {
-            background-color: #4338ca;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Local AI GUI</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- Highlight.js CSS for syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+  <!-- Include Marked.js for Markdown parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+  <!-- Include Highlight.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
 </head>
 <body>
-<div class="container">
-    <h1>Local AI GUI</h1>
-    <div class="model-buttons">
-        {% for m in models %}
-        <button onclick="selectModel('{{m}}')">{{m}}</button>
-        {% endfor %}
+    <div class="navbar">
+        <div class="left-nav">
+          <div class="avatar">R1</div>
+          <h2>Local AI Chat</h2>
+          <div class="donation-links">
+            <a href="https://paypal.me/l8rontop" target="_blank">Donate</a>
+            <a href="https://x.com/qusaismael" target="_blank">Twitter</a>
+          </div>
+        </div>
+        <div class="right-nav">
+          <select id="modelSelect">
+            {% for model in models %}
+              <option value="{{ model }}">{{ model }}</option>
+            {% endfor %}
+          </select>
+          <button id="newChatBtn">+ New Chat</button>
+        </div>
+      </div>
+        <div class="main-container">
+    <div class="sidebar">
+      <h3>Chats</h3>
+      <ul id="chatList">
+        <!-- Chat list items will be populated here -->
+      </ul>
     </div>
-    <div class="chat-window" id="chatWindow"></div>
-    <div class="input-area">
-        <textarea 
-            id="userInput" 
-            placeholder="Type your message..."
-            onkeydown="textareaKeyDown(event)"
-        ></textarea>
-        <button id="sendBtn" onclick="sendMessage()">Send</button>
+    <div class="chat-layout">
+      <div class="chat-window" id="chatWindow">
+        <!-- Chat messages will appear here -->
+      </div>
+      <div class="input-area">
+        <textarea id="userInput" placeholder="Type your message here..."></textarea>
+        <button id="sendBtn">Send</button>
+      </div>
     </div>
-</div>
-
-<script>
-    let selectedModel = null;
-
-    function selectModel(modelName) {
-        selectedModel = modelName;
-        const chatWindow = document.getElementById('chatWindow');
-        chatWindow.innerHTML += 
-            '<div class="message assistant"><p>Model selected: ' 
-            + escapeHtml(modelName) + '</p></div>';
-        chatWindow.scrollTop = chatWindow.scrollHeight;
-    }
-
-    // SHIFT+ENTER => new line, ENTER => send
-    function textareaKeyDown(e) {
-        if (e.key === "Enter") {
-            if (!e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        }
-    }
-
-    // Escapes user-supplied text so it doesn't render HTML tags
-    function escapeHtml(str) {
-        if (!str) return "";
-        return str
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#039;");
-    }
-
-    // Basic Markdown formatting
-    function formatMarkdown(text) {
-        // HEADINGS
-        text = text.replace(/^#{1}\s+(.*)$/gm, "<h1>$1</h1>");
-        text = text.replace(/^#{2}\s+(.*)$/gm, "<h2>$1</h2>");
-        text = text.replace(/^#{3}\s+(.*)$/gm, "<h3>$1</h3>");
-
-        // BOLD
-        text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-        // ITALIC
-        text = text.replace(/\*(.*?)\*/g, "<em>$1</em>");
-
-        // CODE BLOCKS
-        text = text.replace(/```([\s\S]*?)```/gm, function(match, codeContent) {
-            return `
-                <div class="code-block">
-                    <button class="copy-btn" onclick="copyToClipboard(\`${codeContent}\`)">Copy code</button>
-                    <pre><code>${codeContent}</code></pre>
-                </div>
-            `;
-        });
-
-        // INLINE CODE
-        text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
-
-        // Convert single leading "- " to bullet
-        text = text.replace(/^\-\s+(.*)$/gm, "<ul><li>$1</li></ul>");
-
-        return text;
-    }
-
-    function copyToClipboard(str) {
-        navigator.clipboard.writeText(str).then(function() {
-            alert("Code copied to clipboard!");
-        }, function() {
-            alert("Failed to copy code.");
-        });
-    }
-
-    async function sendMessage() {
-        const inputField = document.getElementById('userInput');
-        const userText = inputField.value.trim();
-        if (!userText) return;
-        if (!selectedModel) {
-            alert("Please select a model first.");
-            return;
-        }
-
-        const chatWindow = document.getElementById('chatWindow');
-        chatWindow.innerHTML += 
-            '<div class="message user"><p>' + escapeHtml(userText) + '</p></div>';
-        chatWindow.scrollTop = chatWindow.scrollHeight;
-        
-        inputField.value = "";
-
-        const assistantMsg = document.createElement("div");
-        assistantMsg.classList.add("message", "assistant", "formatted-content");
-        
-        const assistantParagraph = document.createElement("p");
-        assistantParagraph.innerHTML = "<span id='streamContent'></span><span class='streaming'>|</span>";
-
-        // Container for raw output
-        const rawContainer = document.createElement("div");
-        rawContainer.classList.add("raw-container");
-        const rawPre = document.createElement("pre");
-        rawContainer.appendChild(rawPre);
-
-        // Toggle button to show/hide the raw text
-        const toggleBtn = document.createElement("button");
-        toggleBtn.classList.add("toggle-raw-btn");
-        toggleBtn.innerText = "Show raw output";
-        toggleBtn.onclick = () => {
-            if (rawContainer.style.display === "none") {
-                rawContainer.style.display = "block";
-                toggleBtn.innerText = "Hide raw output";
-            } else {
-                rawContainer.style.display = "none";
-                toggleBtn.innerText = "Show raw output";
-            }
-        };
-
-        assistantMsg.appendChild(assistantParagraph);
-        assistantMsg.appendChild(toggleBtn);
-        assistantMsg.appendChild(rawContainer);
-
-        chatWindow.appendChild(assistantMsg);
-        chatWindow.scrollTop = chatWindow.scrollHeight;
-
-        let rawText = "";
-
-        try {
-            // POST to /stream_chat
-            const response = await fetch("/stream_chat", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    prompt: userText,
-                    model: selectedModel
-                })
-            });
-
-            if (!response.ok) {
-                assistantParagraph.querySelector('.streaming')?.remove();
-                assistantParagraph.innerHTML += 
-                  "<br><em>Error: " + response.statusText + "</em>";
-                return;
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder("utf-8");
-            let partial = "";
-
-            while(true) {
-                const { done, value } = await reader.read();
-                if (done) {
-                    break;
-                }
-                const chunk = decoder.decode(value, { stream: true });
-                partial += chunk;
-
-                let lines = partial.split(/\r?\n/);
-                partial = lines.pop();  // keep incomplete line
-
-                for (let line of lines) {
-                    if (line.startsWith("data: ")) {
-                        let data = line.slice(6); 
-                        if (data === "[DONE]") {
-                            assistantParagraph.querySelector('.streaming')?.remove();
-                            break;
-                        } else {
-                            rawText += data + "\n";
-                            rawPre.textContent = rawText;
-
-                            let escapedChunk = escapeHtml(data);
-                            let current = assistantParagraph
-                                .querySelector('#streamContent').innerHTML;
-                            current += escapedChunk + "\n";
-                            assistantParagraph.querySelector('#streamContent').innerHTML 
-                                = formatMarkdown(current);
-                            chatWindow.scrollTop = chatWindow.scrollHeight;
-                        }
-                    }
-                }
-            }
-
-            assistantParagraph.querySelector('.streaming')?.remove();
-
-        } catch (err) {
-            console.error("SendMessage error:", err);
-            assistantParagraph.innerHTML += 
-              "<br><em>Error: " + escapeHtml(String(err)) + "</em>";
-        }
-    }
-</script>
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      hljs.highlightAll();
+    });
+  </script>
+  <script src="/static/app.js"></script>
 </body>
 </html>
