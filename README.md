@@ -7,7 +7,8 @@ A simple Flask-based web GUI that enables local AI (LLMs) inference using [ollam
 
 If you'd like to support this project, consider donating via PayPal: [![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif)](https://paypal.me/l8rontop)
 
-![image](https://github.com/user-attachments/assets/8c0d9b20-43bf-4d14-a916-e9baeaa65f33)
+![image](https://github.com/user-attachments/assets/9f4b13aa-fa0b-495b-a44f-bc88610ea0f8)
+
 
 ---
 
