@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-futuristic">
 <head>
   <meta charset="UTF-8">
   <title>Local AI GUI</title>
@@ -10,27 +10,43 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
   <!-- Include Highlight.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <!-- Include Three.js for futuristic 3D cube -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-    <div class="navbar">
-        <div class="left-nav">
-          <div class="avatar">R1</div>
-          <h2>Local AI Chat</h2>
-          <div class="donation-links">
-            <a href="https://paypal.me/l8rontop" target="_blank">Donate</a>
-            <a href="https://x.com/qusaismael" target="_blank">Twitter</a>
-          </div>
-        </div>
-        <div class="right-nav">
-          <select id="modelSelect">
-            {% for model in models %}
-              <option value="{{ model }}">{{ model }}</option>
-            {% endfor %}
-          </select>
-          <button id="newChatBtn">+ New Chat</button>
-        </div>
+  <!-- Futuristic 3D Cube Canvas (background element) -->
+  <canvas id="futuristicCube"></canvas>
+
+  <div class="navbar">
+    <div class="left-nav">
+      <div class="avatar">R1</div>
+      <h2>Local AI Chat</h2>
+      <div class="donation-links">
+        <a href="https://paypal.me/l8rontop" target="_blank">Donate</a>
+        <a href="https://x.com/qusaismael" target="_blank">Twitter</a>
       </div>
-        <div class="main-container">
+      <!-- Theme Selector -->
+      <div class="theme-selector">
+        <label for="themeSelect">Select Theme:</label>
+        <select id="themeSelect">
+          <option value="theme-purple-dark">Dark Mode</option>
+          <option value="theme-futuristic" selected>Light Mode</option>
+        </select>
+      </div>
+    </div>
+    <div class="right-nav">
+      <!-- Date/Time Display -->
+      <div class="datetime" id="datetimeDisplay"></div>
+      <select id="modelSelect">
+        {% for model in models %}
+          <option value="{{ model }}">{{ model }}</option>
+        {% endfor %}
+      </select>
+      <button id="newChatBtn">+ New Chat</button>
+    </div>
+  </div>
+
+  <div class="main-container">
     <div class="sidebar">
       <h3>Chats</h3>
       <ul id="chatList">
@@ -47,6 +63,9 @@
       </div>
     </div>
   </div>
+
+  <!-- The bottom bar has been removed as requested -->
+
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       hljs.highlightAll();

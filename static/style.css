@@ -1,53 +1,95 @@
-/* Global / Theme Variables */
-:root {
+/* ============================= */
+/*       Theme Definitions       */
+/* ============================= */
+
+/* Purple Dark (current theme) */
+:root.theme-purple-dark {
   --bg-color: #343541;
   --navbar-bg: #2f3037;
   --sidebar-bg: #444654;
   --accent-color: #4f46e5;
   --accent-hover: #4338ca;
   --text-color: #d1d5db;
+  --panel-bg: rgba(255, 255, 255, 0.2);
+  --panel-border: rgba(0, 0, 0, 0.2);
+  --cube-color: #4f46e5;
 }
 
-/* Base / Reset Styles */
+/* Minimalist Futuristic Theme */
+:root.theme-futuristic {
+  /* Light gray monochromatic background */
+  --bg-color: #E5E5E5;
+  /* Clean white navbar with translucency */
+  --navbar-bg: rgba(255, 255, 255, 0.8);
+  /* Translucent sidebar panels with glassmorphism */
+  --sidebar-bg: rgba(255, 255, 255, 0.7);
+  /* Black accents and buttons */
+  --accent-color: #000000;
+  --accent-hover: #111111;
+  --text-color: #2e2e2e;
+  /* White translucent panels with blur */
+  --panel-bg: rgba(255, 255, 255, 0.7);
+  /* Thin borders */
+  --panel-border: rgba(0, 0, 0, 0.1);
+  --cube-color: #000000;
+}
+
+/* ============================= */
+/*         Base / Reset          */
+/* ============================= */
 body {
   background-color: var(--bg-color);
   color: var(--text-color);
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
   padding: 0;
   overflow: hidden;
+  letter-spacing: 0.5px;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  color: #fff;
+  color: var(--text-color);
   margin: 0;
   padding: 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
-/* Navbar */
+/* ============================= */
+/*           Navbar              */
+/* ============================= */
 .navbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   background-color: var(--navbar-bg);
-  padding: 12px 16px;
-  border-bottom: 1px solid #2f2f47;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--panel-border);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 200;
+  backdrop-filter: blur(8px);
 }
 
 .navbar .left-nav {
   display: flex;
   align-items: center;
+  gap: 15px;
 }
 
 .navbar .avatar {
   background-color: var(--accent-color);
-  padding: 6px;
+  padding: 8px;
   border-radius: 50%;
   margin-right: 8px;
   font-weight: bold;
+  color: #fff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.navbar .avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .navbar .right-nav {
@@ -56,71 +98,159 @@ h1, h2, h3, h4, h5, h6 {
   gap: 1em;
 }
 
+/* Theme and Model selectors */
 .navbar select,
 .navbar button {
   background-color: var(--accent-color);
-  border: none;
+  border: 1px solid var(--panel-border);
   color: #fff;
   border-radius: 4px;
-  padding: 6px 8px;
+  padding: 6px 10px;
   cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .navbar button:hover,
 .navbar select:hover {
   background-color: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Layout */
+/* Date/Time Display */
+.navbar .datetime {
+  font-size: 0.9rem;
+  color: var(--text-color);
+  margin-left: auto;
+}
+
+/* ============================= */
+/*        Theme Selector         */
+/* ============================= */
+.theme-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-selector label {
+  color: var(--text-color);
+}
+
+/* ============================= */
+/*           Layout              */
+/* ============================= */
 .main-container {
   display: flex;
   height: calc(100vh - 52px); /* Adjusted for navbar height */
+  position: relative;
+  z-index: 100;
+  padding: 10px;
+  gap: 10px;
 }
 
+/* Sidebar (Chats & Futuristic Panels) */
 .sidebar {
-  width: 240px;
+  width: 260px;
   background-color: var(--sidebar-bg);
-  border-right: 1px solid #2f2f47;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
   overflow-y: auto;
   padding: 16px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease;
+}
+
+.sidebar:hover {
+  transform: scale(1.02);
 }
 
 .sidebar h3 {
   margin-bottom: 1em;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
 }
 
 #chatList {
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 0 0 20px 0;
 }
 
 #chatList li {
-  margin-bottom: 0.5em;
-  padding: 8px;
-  background-color: #3c3f4d;
-  border-radius: 4px;
+  margin-bottom: 0.8em;
+  padding: 10px;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 #chatList li:hover {
-  background-color: #333645;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Futuristic Panels */
+.futuristic-panels {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.futuristic-panels .panel {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 12px;
+  backdrop-filter: blur(8px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.futuristic-panels .panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.futuristic-panels .panel h4 {
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+}
+
+/* Chat Layout */
 .chat-layout {
   flex: 1;
   display: flex;
   flex-direction: column;
+  position: relative;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background-color: var(--panel-bg);
+  padding: 16px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease;
 }
 
+.chat-layout:hover {
+  transform: scale(1.01);
+}
+
+/* Chat Window */
 .chat-window {
   flex: 1;
-  background-color: #444654;
+  background-color: transparent;
   padding: 15px;
   overflow-y: auto;
+  position: relative;
+  z-index: 150;
 }
 
 .message {
@@ -136,92 +266,69 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .message p {
-  background-color: #3c3f4d;
+  background-color: var(--panel-bg);
   display: inline-block;
-  padding: 10px;
+  padding: 12px 16px;
   border-radius: 10px;
   max-width: 80%;
   white-space: pre-wrap;
+  border: 1px solid var(--panel-border);
+  font-family: 'Courier New', Courier, monospace;
+  transition: box-shadow 0.2s ease;
 }
 
-/* Code blocks */
-.formatted-content pre,
-.formatted-content code {
-  font-family: "Courier New", Courier, monospace;
-  border-radius: 5px;
+.message p:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.formatted-content pre {
-  background: #2b2b2b;
-  color: #f8f8f2;
-  padding: 10px;
-  overflow: auto;
-  margin-bottom: 10px;
-  position: relative;
-}
-
-.code-block {
-  position: relative;
-  margin-bottom: 1em;
-}
-
-.copy-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background-color: var(--accent-color);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 5px 8px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  transition: background-color 0.2s;
-}
-
-.copy-btn:hover {
-  background-color: var(--accent-hover);
-}
-
-/* Input area */
+/* ============================= */
+/*           Input Area          */
+/* ============================= */
 .input-area {
   display: flex;
-  padding: 10px;
-  border-top: 1px solid #2f2f47;
-  background-color: #3c3f4d;
+  padding: 12px;
+  border-top: 1px solid var(--panel-border);
+  background-color: var(--sidebar-bg);
+  border-radius: 0 0 8px 8px;
+  z-index: 150;
+  gap: 10px;
 }
 
 #userInput {
   flex: 1;
-  padding: 10px;
-  border-radius: 5px;
-  border: none;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
   font-size: 1em;
   resize: none;
   height: 50px;
   max-height: 200px;
   line-height: 1.2em;
   overflow-y: auto;
-  background-color: #343541;
+  background-color: rgba(255, 255, 255, 0.8);
   color: var(--text-color);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 #sendBtn {
-  margin-left: 10px;
-  padding: 10px 20px;
+  padding: 12px 20px;
   background-color: var(--accent-color);
   color: #fff;
-  border: none;
-  border-radius: 5px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 #sendBtn:hover {
   background-color: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Streaming cursor animation */
+/* ============================= */
+/*       Streaming & Code Blocks */
+/* ============================= */
 .streaming {
   animation: blinkingCursor 1.2s infinite;
   margin-left: 2px;
@@ -233,12 +340,12 @@ h1, h2, h3, h4, h5, h6 {
   100% { opacity: 0; }
 }
 
-/* Raw output toggle */
 .raw-container {
   margin-top: 10px;
-  background: #2f2f3e;
+  background: rgba(0, 0, 0, 0.8);
   padding: 10px;
   border-radius: 4px;
+  backdrop-filter: blur(6px);
 }
 
 .raw-container pre {
@@ -249,24 +356,44 @@ h1, h2, h3, h4, h5, h6 {
   white-space: pre-wrap;
   margin: 0;
   padding: 10px;
+  font-family: 'Courier New', Courier, monospace;
 }
 
 .toggle-raw-btn {
   background-color: var(--accent-color);
-  border: none;
+  border: 1px solid var(--panel-border);
   color: #fff;
   padding: 5px 8px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.75rem;
   margin-top: 5px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .toggle-raw-btn:hover {
-  background-color: var(--accent-hover);
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Responsive design */
+/* ============================= */
+/*       Futuristic Cube        */
+/* ============================= */
+#futuristicCube {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  height: 300px;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.2;
+}
+
+/* ============================= */
+/*         Responsive         */
+/* ============================= */
 @media (max-width: 768px) {
   .main-container {
     flex-direction: column;
@@ -275,9 +402,10 @@ h1, h2, h3, h4, h5, h6 {
     width: 100%;
     height: auto;
     border-right: none;
-    border-bottom: 1px solid #2f2f47;
+    border-bottom: 1px solid var(--panel-border);
   }
 }
+
 .donation-links {
   display: flex;
   gap: 10px;
@@ -285,15 +413,44 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .donation-links a {
-  color: #fff;
+  color: var(--text-color);
   text-decoration: none;
   font-size: 0.9em;
   background-color: var(--accent-color);
   padding: 4px 8px;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .donation-links a:hover {
   background-color: var(--accent-hover);
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================= */
+/*  Custom Overrides for Changes */
+/* ============================= */
+
+:root.theme-futuristic .donation-links a {
+  color: #ffffff;
+}
+
+:root.theme-purple-dark #userInput {
+  color: #000000;
+}
+
+/* ------------------------------ */
+/* Global Rounded Corners Override */
+/* ------------------------------ */
+.navbar,
+.sidebar,
+.chat-layout,
+.input-area,
+.donation-links a,
+button,
+select,
+textarea,
+.raw-container {
+  border-radius: 12px;
 }
