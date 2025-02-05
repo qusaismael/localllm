@@ -64,6 +64,7 @@ def initialize_chat_history(chat_id: str):
     if 'chat_histories' not in session:
         session['chat_histories'] = {}
     session['chat_histories'][chat_id] = []
+    session.modified = True  # Mark the session as modified
     logger.debug(f"Initialized chat history for chat_id {chat_id}.")
 
 def append_message(chat_id: str, role: str, content: str):
@@ -73,6 +74,7 @@ def append_message(chat_id: str, role: str, content: str):
     if chat_id not in session['chat_histories']:
         initialize_chat_history(chat_id)
     session['chat_histories'][chat_id].append({"role": role, "content": content})
+    session.modified = True  # Ensure session changes are saved
     logger.debug(f"Appended {role} message to chat_id {chat_id}: {content}")
 
 def build_full_prompt(chat_id: str) -> str:
@@ -222,6 +224,7 @@ def reset_chat():
     
     if 'chat_histories' in session and chat_id in session['chat_histories']:
         del session['chat_histories'][chat_id]
+        session.modified = True  # Mark session as modified after deletion
         logger.info(f"Chat history for chat_id {chat_id} has been reset.")
         return jsonify({"status": f"Chat history for {chat_id} reset."}), 200
     else:
