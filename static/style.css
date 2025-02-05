@@ -329,15 +329,29 @@ h1, h2, h3, h4, h5, h6 {
 /* ============================= */
 /*       Streaming & Code Blocks */
 /* ============================= */
+/* Enhanced streaming text animation */
 .streaming {
-  animation: blinkingCursor 1.2s infinite;
+  display: inline-block;
+  position: relative;
+  overflow: hidden;
+  animation: fadeSlide 1.5s ease-in-out infinite;
   margin-left: 2px;
 }
 
-@keyframes blinkingCursor {
-  0% { opacity: 0; }
-  50% { opacity: 1; }
-  100% { opacity: 0; }
+/* Keyframes for enhanced streaming animation */
+@keyframes fadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(5px);
+  }
 }
 
 .raw-container {
