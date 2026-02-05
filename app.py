@@ -1,676 +1,762 @@
-import os
-import re
-import shutil
-import subprocess
-import logging
-import uuid
+import sqlite3
 import json
+import urllib.request
+import urllib.error
+import subprocess
+import platform
+import os
+import threading
+import shutil
 from datetime import datetime
-from flask import Flask, request, render_template, Response, stream_with_context, session, jsonify, send_file
-from flask_session import Session
-from werkzeug.utils import secure_filename
-import secrets
+from uuid import uuid4
+from flask import Flask, request, jsonify, render_template, Response, g
 
-# ---------------------------
-# Configuration
-# ---------------------------
-class Config:
-    # Generate secure secret key
-    SECRET_KEY = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-    SESSION_TYPE = 'filesystem'
-    DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+app = Flask(__name__)
+app.config['DATABASE'] = 'chats.db'
+
+# Store for tracking model download progress
+model_pull_progress = {}
+
+# Database
+
+def get_db():
+    if 'db' not in g:
+        g.db = sqlite3.connect(app.config['DATABASE'])
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+@app.teardown_appcontext
+def close_db(e=None):
+    db = g.pop('db', None)
+    if db:
+        db.close()
+
+def get_db_connection():
+    """Get a new database connection (for use outside request context)"""
+    conn = sqlite3.connect(app.config['DATABASE'])
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    db = get_db()
+    db.executescript('''
+        CREATE TABLE IF NOT EXISTS conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT DEFAULT 'New chat',
+            model TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id TEXT,
+            role TEXT,
+            content TEXT,
+            created_at TEXT,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+        );
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
+        INSERT OR IGNORE INTO settings (key, value) VALUES ('ollama_url', 'http://localhost:11434');
+    ''')
+    db.commit()
+
+with app.app_context():
+    init_db()
+
+# Settings
+
+def get_setting(key, default=None):
+    db = get_db()
+    row = db.execute('SELECT value FROM settings WHERE key = ?', (key,)).fetchone()
+    return row['value'] if row else default
+
+def set_setting(key, value):
+    db = get_db()
+    db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, value))
+    db.commit()
+
+# Ollama
+
+DEFAULT_OLLAMA_URL = 'http://localhost:11434'
+
+# Cache the URL to avoid repeated DB lookups
+_cached_ollama_url = None
+
+def get_ollama_url():
+    """Get Ollama URL - works both inside and outside request context"""
+    global _cached_ollama_url
     
-    # Ollama settings
-    OLLAMA_PATH = shutil.which("ollama") or "/usr/local/bin/ollama"
-    DEFAULT_MODEL = "deepseek-r1:14b"
+    # Try to get from request context first
+    try:
+        from flask import has_request_context
+        if has_request_context():
+            url = get_setting('ollama_url', None)
+            if url and url.strip() and url.startswith('http'):
+                _cached_ollama_url = url
+                return url
+    except:
+        pass
     
-    # Default available models (can be extended by users)
-    DEFAULT_MODELS = [
-        "deepseek-r1:14b",
-        "deepseek-r1:8b",
-        "deepseek-r1:7b",
-        "deepseek-r1:1.5b",
-        "qwen2.5:latest",
-        "codellama:13b",
-        "llama3.2:latest"
+    # Try cached value
+    if _cached_ollama_url and _cached_ollama_url.startswith('http'):
+        return _cached_ollama_url
+    
+    # Try direct DB query outside of request context
+    try:
+        conn = sqlite3.connect(app.config['DATABASE'])
+        cursor = conn.execute('SELECT value FROM settings WHERE key = ?', ('ollama_url',))
+        row = cursor.fetchone()
+        conn.close()
+        if row and row[0] and row[0].strip() and row[0].startswith('http'):
+            _cached_ollama_url = row[0]
+            return row[0]
+    except:
+        pass
+    
+    # Default fallback - also cache it
+    _cached_ollama_url = DEFAULT_OLLAMA_URL
+    return DEFAULT_OLLAMA_URL
+
+def clear_url_cache():
+    """Clear the cached URL (call after settings change)"""
+    global _cached_ollama_url
+    _cached_ollama_url = None
+
+def ollama_request(endpoint, method='GET', data=None, stream=False, timeout=30):
+    base_url = get_ollama_url()
+    url = f"{base_url}{endpoint}"
+    
+    req = urllib.request.Request(url, method=method)
+    req.add_header('Content-Type', 'application/json')
+    
+    body = json.dumps(data).encode() if data else None
+    
+    if stream:
+        return urllib.request.urlopen(req, body, timeout=300)
+    
+    with urllib.request.urlopen(req, body, timeout=timeout) as resp:
+        return json.loads(resp.read().decode())
+
+def find_ollama_path():
+    """Find the ollama executable path"""
+    # Check common locations
+    common_paths = [
+        '/usr/local/bin/ollama',
+        '/usr/bin/ollama',
+        os.path.expanduser('~/.local/bin/ollama'),
+        '/opt/ollama/ollama',
     ]
     
-    # Server configuration
-    HOST = "0.0.0.0"  # Use "localhost" for local-only access
-    PORT = 5000
+    # First check if it's in PATH
+    ollama_in_path = shutil.which('ollama')
+    if ollama_in_path:
+        return ollama_in_path
     
-    # File upload settings
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-    UPLOAD_FOLDER = 'uploads'
-    ALLOWED_EXTENSIONS = {'txt', 'md', 'json'}
+    # Check common locations
+    for path in common_paths:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
     
-    # Security settings - disable CSRF for local AI application
-    WTF_CSRF_ENABLED = False
+    return None
 
-# ---------------------------
-# Initialize Flask Application
-# ---------------------------
-app = Flask(__name__)
-app.config.from_object(Config)
-Session(app)
-
-# Note: CSRF protection disabled for local AI application
-# If you need CSRF protection in production, enable it and add proper token handling
-
-# Ensure upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG if app.config['DEBUG'] else logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# ANSI escape sequence cleaner (for cleaning LLM output)
-ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-
-# ---------------------------
-# Helper Functions
-# ---------------------------
-def generate_chat_id() -> str:
-    """Generate a unique chat identifier using UUID4."""
-    return str(uuid.uuid4())
-
-def get_user_models() -> list:
-    """Get user's custom models from session, merged with defaults."""
-    user_models = session.get('user_models', [])
-    all_models = list(Config.DEFAULT_MODELS)
+def check_ollama_installed():
+    """Check if Ollama is installed on the system"""
+    ollama_path = find_ollama_path()
     
-    # Add user models that aren't already in defaults
-    for model in user_models:
-        if model not in all_models:
-            all_models.append(model)
-    
-    return all_models
-
-def add_user_model(model_name: str) -> tuple[bool, str]:
-    """Add a custom model to user's list."""
-    try:
-        # Validate model name format
-        if not re.match(r'^[a-zA-Z0-9._:-]+$', model_name):
-            return False, "Invalid model name format. Use only letters, numbers, dots, hyphens, colons, and underscores."
-        
-        if len(model_name) > 100:
-            return False, "Model name too long (max 100 characters)."
-        
-        # Check if model exists in Ollama
-        result = subprocess.run(
-            [Config.OLLAMA_PATH, "list"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        
-        if result.returncode != 0:
-            return False, "Unable to connect to Ollama. Please ensure Ollama is running."
-        
-        available_models = [line.split()[0] for line in result.stdout.strip().split('\n') if line.strip()]
-        
-        if model_name not in available_models:
-            return False, f"Model '{model_name}' not found in Ollama. Please pull the model first with: ollama pull {model_name}"
-        
-        # Add to session
-        if 'user_models' not in session:
-            session['user_models'] = []
-        
-        if model_name not in session['user_models']:
-            session['user_models'].append(model_name)
-            session.modified = True
-            logger.info(f"Added custom model: {model_name}")
-            return True, f"Successfully added model '{model_name}'"
-        else:
-            return False, f"Model '{model_name}' is already in your list."
-            
-    except subprocess.TimeoutExpired:
-        return False, "Timeout while checking Ollama models. Please try again."
-    except Exception as e:
-        logger.error(f"Error adding model {model_name}: {str(e)}")
-        return False, "An error occurred while adding the model. Please try again."
-
-def remove_user_model(model_name: str) -> tuple[bool, str]:
-    """Remove a custom model from user's list."""
-    if 'user_models' not in session:
-        return False, "No custom models to remove."
-    
-    if model_name in Config.DEFAULT_MODELS:
-        return False, "Cannot remove default models."
-    
-    if model_name in session['user_models']:
-        session['user_models'].remove(model_name)
-        session.modified = True
-        logger.info(f"Removed custom model: {model_name}")
-        return True, f"Successfully removed model '{model_name}'"
-    else:
-        return False, f"Model '{model_name}' not found in your custom models."
-
-def validate_input(data: dict, required_fields: list) -> tuple[bool, str]:
-    """Validate input data for required fields and basic sanitization."""
-    for field in required_fields:
-        if field not in data or not data.get(field, '').strip():
-            return False, f"The field '{field}' is required and cannot be empty."
-    
-    # Basic length validation
-    if 'prompt' in data and len(data['prompt']) > 10000:
-        return False, "Your message is too long. Please keep it under 10,000 characters."
-    
-    if 'chat_id' in data and not re.match(r'^[a-f0-9-]{36}$', data['chat_id']):
-        return False, "Invalid chat session. Please refresh the page and try again."
-    
-    if 'model' in data and len(data['model']) > 100:
-        return False, "Model name is too long."
-    
-    return True, ""
-
-def sanitize_filename(filename: str) -> str:
-    """Sanitize filename for safe storage."""
-    return secure_filename(filename)
-
-def allowed_file(filename: str) -> bool:
-    """Check if file extension is allowed."""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
-
-def initialize_chat_history(chat_id: str):
-    """Initialize chat history for a new chat."""
-    if 'chat_histories' not in session:
-        session['chat_histories'] = {}
-    session['chat_histories'][chat_id] = []
-    session.modified = True
-    logger.debug(f"Initialized chat history for chat_id {chat_id}.")
-
-def append_message(chat_id: str, role: str, content: str):
-    """Append a message to the chat history."""
-    if 'chat_histories' not in session:
-        session['chat_histories'] = {}
-    if chat_id not in session['chat_histories']:
-        initialize_chat_history(chat_id)
-    
-    message = {
-        "role": role, 
-        "content": content,
-        "timestamp": datetime.now().isoformat()
-    }
-    session['chat_histories'][chat_id].append(message)
-    session.modified = True
-    logger.debug(f"Appended {role} message to chat_id {chat_id}")
-
-def build_full_prompt(chat_id: str) -> str:
-    """Build the full prompt including chat history."""
-    full_prompt = ""
-    for message in session['chat_histories'].get(chat_id, []):
-        role = "Human" if message["role"] == "user" else "Assistant"
-        full_prompt += f"{role}: {message['content']}\n"
-    logger.debug(f"Full prompt for chat_id {chat_id}:\n{full_prompt}")
-    return full_prompt
-
-def search_chat_history(query: str) -> list:
-    """Search through all chat histories for messages containing the query."""
-    results = []
-    if 'chat_histories' not in session:
-        return results
-    
-    query_lower = query.lower()
-    for chat_id, messages in session['chat_histories'].items():
-        for i, message in enumerate(messages):
-            if query_lower in message['content'].lower():
-                results.append({
-                    'chat_id': chat_id,
-                    'message_index': i,
-                    'role': message['role'],
-                    'content': message['content'][:200] + '...' if len(message['content']) > 200 else message['content'],
-                    'timestamp': message.get('timestamp', 'Unknown')
-                })
-    return results
-
-# ---------------------------
-# Routes
-# ---------------------------
-@app.route("/health", methods=["GET"])
-def health_check():
-    """Endpoint for system health monitoring."""
-    try:
-        result = subprocess.run(
-            [Config.OLLAMA_PATH, "--version"],
-            capture_output=True,
-            check=True,
-            text=True,
-            timeout=5
-        )
-        logger.debug(f"Ollama version: {result.stdout.strip()}")
-        return jsonify({
-            "status": "healthy",
-            "ollama": "accessible",
-            "version": result.stdout.strip(),
-            "timestamp": datetime.now().isoformat(),
-            "message": "System is running normally"
-        }), 200
-    except subprocess.TimeoutExpired:
-        logger.error("Health check timed out")
-        return jsonify({
-            "status": "unhealthy", 
-            "error": "Ollama connection timeout",
-            "message": "Unable to connect to Ollama within 5 seconds",
-            "timestamp": datetime.now().isoformat()
-        }), 503
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Ollama command failed: {e}")
-        return jsonify({
-            "status": "unhealthy",
-            "error": "Ollama command failed",
-            "message": "Ollama may not be installed or accessible",
-            "timestamp": datetime.now().isoformat()
-        }), 503
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return jsonify({
-            "status": "unhealthy", 
-            "error": str(e),
-            "message": "An unexpected error occurred during health check",
-            "timestamp": datetime.now().isoformat()
-        }), 503
-
-@app.route("/models", methods=["GET"])
-def list_models():
-    """Endpoint to list available Ollama models."""
-    try:
-        result = subprocess.run(
-            [Config.OLLAMA_PATH, "list"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10
-        )
-        models = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
-        logger.debug(f"Available models: {models}")
-        return jsonify({
-            "models": models,
-            "message": f"Found {len(models)} available models"
-        }), 200
-    except subprocess.TimeoutExpired:
-        return jsonify({
-            "error": "Request timeout", 
-            "message": "Unable to retrieve models within 10 seconds. Please try again."
-        }), 500
-    except subprocess.CalledProcessError as e:
-        return jsonify({
-            "error": "Ollama error",
-            "message": "Unable to retrieve models from Ollama. Please ensure Ollama is running."
-        }), 500
-    except Exception as e:
-        logger.error(f"Failed to list models: {str(e)}")
-        return jsonify({
-            "error": "Server error",
-            "message": "An unexpected error occurred while retrieving models."
-        }), 500
-
-@app.route("/add_model", methods=["POST"])
-def add_model():
-    """Add a custom model to user's list."""
-    try:
-        data = request.get_json(silent=True) or {}
-        valid, error_msg = validate_input(data, ['model_name'])
-        if not valid:
-            return jsonify({"error": error_msg}), 400
-        
-        model_name = data['model_name'].strip()
-        success, message = add_user_model(model_name)
-        
-        if success:
-            return jsonify({
-                "message": message,
-                "models": get_user_models()
-            }), 200
-        else:
-            return jsonify({"error": message}), 400
-            
-    except Exception as e:
-        logger.error(f"Add model error: {str(e)}")
-        return jsonify({
-            "error": "Server error",
-            "message": "An unexpected error occurred while adding the model."
-        }), 500
-
-@app.route("/remove_model", methods=["POST"])
-def remove_model():
-    """Remove a custom model from user's list."""
-    try:
-        data = request.get_json(silent=True) or {}
-        valid, error_msg = validate_input(data, ['model_name'])
-        if not valid:
-            return jsonify({"error": error_msg}), 400
-        
-        model_name = data['model_name'].strip()
-        success, message = remove_user_model(model_name)
-        
-        if success:
-            return jsonify({
-                "message": message,
-                "models": get_user_models()
-            }), 200
-        else:
-            return jsonify({"error": message}), 400
-            
-    except Exception as e:
-        logger.error(f"Remove model error: {str(e)}")
-        return jsonify({
-            "error": "Server error",
-            "message": "An unexpected error occurred while removing the model."
-        }), 500
-
-@app.route("/search", methods=["POST"])
-def search():
-    """Search through chat histories."""
-    try:
-        data = request.get_json(silent=True) or {}
-        valid, error_msg = validate_input(data, ['query'])
-        if not valid:
-            return jsonify({"error": error_msg}), 400
-        
-        query = data['query'].strip()
-        if len(query) < 2:
-            return jsonify({
-                "error": "Search query too short",
-                "message": "Please enter at least 2 characters to search."
-            }), 400
-        
-        results = search_chat_history(query)
-        
-        return jsonify({
-            "results": results,
-            "message": f"Found {len(results)} results for '{query}'"
-        }), 200
-    except Exception as e:
-        logger.error(f"Search error: {str(e)}")
-        return jsonify({
-            "error": "Search failed",
-            "message": "An error occurred while searching. Please try again."
-        }), 500
-
-@app.route("/export", methods=["GET"])
-def export_chats():
-    """Export all chat histories as JSON."""
-    try:
-        if not session.get('chat_histories'):
-            return jsonify({
-                "error": "No chats to export",
-                "message": "You don't have any chat histories to export."
-            }), 400
-        
-        chat_data = {
-            "export_timestamp": datetime.now().isoformat(),
-            "chat_histories": session.get('chat_histories', {}),
-            "user_models": session.get('user_models', []),
-            "version": "1.0"
-        }
-        
-        filename = f"chat_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(chat_data, f, indent=2, ensure_ascii=False)
-        
-        return send_file(filepath, as_attachment=True, download_name=filename)
-    except Exception as e:
-        logger.error(f"Export error: {str(e)}")
-        return jsonify({
-            "error": "Export failed",
-            "message": "An error occurred while exporting your chats. Please try again."
-        }), 500
-
-@app.route("/import", methods=["POST"])
-def import_chats():
-    """Import chat histories from JSON file."""
-    try:
-        if 'file' not in request.files:
-            return jsonify({
-                "error": "No file provided",
-                "message": "Please select a file to import."
-            }), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({
-                "error": "No file selected",
-                "message": "Please select a valid file."
-            }), 400
-        
-        if not allowed_file(file.filename):
-            return jsonify({
-                "error": "Invalid file type",
-                "message": "Only JSON files are allowed for import."
-            }), 400
-        
-        # Read and parse JSON
+    if ollama_path:
         try:
-            content = file.read().decode('utf-8')
-            data = json.loads(content)
-        except UnicodeDecodeError:
-            return jsonify({
-                "error": "File encoding error",
-                "message": "Unable to read the file. Please ensure it's a valid UTF-8 encoded JSON file."
-            }), 400
-        except json.JSONDecodeError as e:
-            return jsonify({
-                "error": "Invalid JSON format",
-                "message": f"The file contains invalid JSON: {str(e)}"
-            }), 400
-        
-        if 'chat_histories' not in data:
-            return jsonify({
-                "error": "Invalid file format",
-                "message": "The file doesn't contain valid chat history data."
-            }), 400
-        
-        # Merge with existing chat histories
-        if 'chat_histories' not in session:
-            session['chat_histories'] = {}
-        
-        imported_count = 0
-        for chat_id, messages in data['chat_histories'].items():
-            if chat_id not in session['chat_histories']:
-                session['chat_histories'][chat_id] = messages
-                imported_count += 1
-        
-        # Import user models if available
-        if 'user_models' in data:
-            if 'user_models' not in session:
-                session['user_models'] = []
-            for model in data['user_models']:
-                if model not in session['user_models']:
-                    session['user_models'].append(model)
-        
-        session.modified = True
-        return jsonify({
-            "message": f"Successfully imported {imported_count} chats",
-            "imported_count": imported_count
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Import error: {str(e)}")
-        return jsonify({
-            "error": "Import failed",
-            "message": "An error occurred while importing the file. Please try again."
-        }), 500
+            result = subprocess.run([ollama_path, '--version'], 
+                                  capture_output=True, text=True, timeout=5)
+            version_output = result.stdout.strip() or result.stderr.strip()
+            # Parse version - could be "ollama version 0.1.32" or just "0.1.32"
+            version = version_output.replace('ollama version', '').strip()
+            if not version or version == '':
+                version = 'installed'
+            return {'installed': True, 'version': version, 'path': ollama_path}
+        except Exception as e:
+            return {'installed': True, 'version': 'installed', 'path': ollama_path}
+    
+    return {'installed': False, 'version': None, 'path': None}
 
-@app.route("/", methods=["GET"])
-def index():
-    """Render main chat interface."""
-    return render_template('index.html', models=get_user_models())
-
-@app.route("/stream_chat", methods=["POST"])
-def stream_chat():
-    """Handle streaming chat requests with conversation context."""
+def check_ollama_running():
+    """Check if Ollama server is running by making HTTP request"""
+    url = get_ollama_url()
     try:
-        data = request.get_json(silent=True) or {}
-        valid, error_msg = validate_input(data, ['prompt', 'model', 'chat_id'])
-        if not valid:
-            return jsonify({"error": error_msg}), 400
-        
-        prompt = data['prompt'].strip()
-        model = data['model'].strip()
-        chat_id = data['chat_id'].strip()
-
-        # Initialize chat history if not present
-        if 'chat_histories' not in session or chat_id not in session['chat_histories']:
-            initialize_chat_history(chat_id)
-        
-        available_models = get_user_models()
-        if model not in available_models:
-            return jsonify({
-                "error": "Model not available",
-                "message": f"The model '{model}' is not in your available models list."
-            }), 400
-        
-        # Append user prompt to chat history
-        append_message(chat_id, "user", prompt)
-        
-        # Build full conversation prompt
-        full_prompt = build_full_prompt(chat_id)
-        logger.info(f"Processing chat_id {chat_id} with model {model}.")
-
-        def sse_generator():
-            try:
-                # Launch the LLM subprocess
-                with subprocess.Popen(
-                    [Config.OLLAMA_PATH, "run", model],
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True,
-                    bufsize=1
-                ) as proc:
-                    if proc.stdin:
-                        proc.stdin.write(full_prompt)
-                        proc.stdin.close()
-                        logger.debug(f"Written prompt to Ollama subprocess for chat_id {chat_id}.")
-                    
-                    assistant_response = ""
-                    # Stream and clean output line by line
-                    for line in proc.stdout:
-                        clean_line = ansi_escape.sub('', line)
-                        if clean_line.strip():
-                            logger.debug(f"Ollama output for chat_id {chat_id}: {clean_line.strip()}")
-                            assistant_response += clean_line
-                            yield f"data: {clean_line}\n\n"
-                    
-                    # Append assistant's response to chat history
-                    append_message(chat_id, "assistant", assistant_response.strip())
-                    
-                    # Check for any error output
-                    err_output = proc.stderr.read()
-                    return_code = proc.wait()
-                    if return_code != 0:
-                        error_messages = {
-                            1: "Model not found. Please ensure the model is pulled with 'ollama pull'",
-                            2: "Invalid model format or corrupted model",
-                            3: "Insufficient system resources",
-                            127: "Ollama command not found. Please ensure Ollama is installed and in PATH"
-                        }
-                        err_msg = error_messages.get(return_code, f"Ollama exited with code {return_code}")
-                        if err_output.strip():
-                            err_msg += f": {err_output.strip()}"
-                        logger.error(f"Ollama error for chat_id {chat_id}: {err_msg}")
-                        yield f"data: Error: {err_msg}\n\n"
-                    
-                    yield "data: [DONE]\n\n"
-            except Exception as e:
-                logger.error(f"Stream error for chat_id {chat_id}: {str(e)}")
-                yield f"data: Error: An unexpected error occurred while processing your request.\n\n"
-                yield "data: [DONE]\n\n"
-        
-        return Response(stream_with_context(sse_generator()), mimetype='text/event-stream')
-        
+        req = urllib.request.Request(f"{url}/", method='GET')
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return resp.status == 200
+    except urllib.error.URLError as e:
+        print(f"Ollama check failed ({url}): {e}")
+        return False
     except Exception as e:
-        logger.error(f"Stream chat error: {str(e)}")
-        return jsonify({
-            "error": "Streaming failed",
-            "message": "An error occurred while processing your message. Please try again."
-        }), 500
+        print(f"Ollama check error ({url}): {e}")
+        return False
 
-@app.route("/reset_chat", methods=["POST"])
-def reset_chat():
-    """Endpoint to reset a specific chat history."""
+def get_installed_models():
+    """Get list of installed models via API"""
     try:
-        data = request.get_json(silent=True) or {}
-        valid, error_msg = validate_input(data, ['chat_id'])
-        if not valid:
-            return jsonify({"error": error_msg}), 400
-        
-        chat_id = data['chat_id'].strip()
-        
-        if 'chat_histories' in session and chat_id in session['chat_histories']:
-            del session['chat_histories'][chat_id]
-            session.modified = True
-            logger.info(f"Chat history for chat_id {chat_id} has been reset.")
-            return jsonify({
-                "status": "success",
-                "message": f"Chat history has been cleared successfully."
-            }), 200
+        data = ollama_request('/api/tags', timeout=5)
+        return [m['name'] for m in data.get('models', [])]
+    except:
+        return []
+
+def start_ollama_server():
+    """Attempt to start Ollama server"""
+    ollama_info = check_ollama_installed()
+    if not ollama_info['installed']:
+        return False
+    
+    ollama_path = ollama_info.get('path') or 'ollama'
+    
+    try:
+        # Start ollama serve in background
+        if platform.system() == 'Windows':
+            subprocess.Popen([ollama_path, 'serve'], 
+                           creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
-            logger.warning(f"No chat history found for chat_id {chat_id}.")
-            return jsonify({
-                "error": "Chat not found",
-                "message": "The specified chat could not be found."
-            }), 404
-            
+            subprocess.Popen([ollama_path, 'serve'], 
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           start_new_session=True)
+        return True
     except Exception as e:
-        logger.error(f"Reset chat error: {str(e)}")
-        return jsonify({
-            "error": "Reset failed",
-            "message": "An error occurred while clearing the chat. Please try again."
-        }), 500
+        print(f"Failed to start Ollama: {e}")
+        return False
 
-@app.errorhandler(404)
-def not_found(error):
-    """Handle 404 errors."""
+# Routes
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/api/settings', methods=['GET', 'POST'])
+def settings():
+    if request.method == 'POST':
+        data = request.get_json()
+        if 'ollama_url' in data:
+            url = data['ollama_url'].rstrip('/')
+            set_setting('ollama_url', url)
+            clear_url_cache()  # Clear cached URL when changed
+        if 'setup_complete' in data:
+            set_setting('setup_complete', 'true' if data['setup_complete'] else 'false')
+        return jsonify({'ok': True})
+    
     return jsonify({
-        "error": "Page not found",
-        "message": "The requested page or endpoint could not be found."
-    }), 404
+        'ollama_url': get_setting('ollama_url', 'http://localhost:11434'),
+        'setup_complete': get_setting('setup_complete', 'false') == 'true'
+    })
 
-@app.errorhandler(500)
-def internal_error(error):
-    """Handle 500 errors."""
-    logger.error(f"Internal server error: {str(error)}")
+@app.route('/api/health')
+def health():
+    if check_ollama_running():
+        return jsonify({'status': 'connected'})
+    return jsonify({'status': 'disconnected'}), 503
+
+@app.route('/api/debug')
+def debug():
+    """Debug endpoint to check what's happening"""
+    ollama_url = get_ollama_url()
+    is_running = check_ollama_running()
+    models = get_installed_models() if is_running else []
+    ollama_info = check_ollama_installed()
+    
+    # Try direct connection test
+    connection_error = None
+    try:
+        req = urllib.request.Request(f"{ollama_url}/", method='GET')
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            connection_test = f"OK (status {resp.status})"
+    except Exception as e:
+        connection_test = f"FAILED: {str(e)}"
+        connection_error = str(e)
+    
     return jsonify({
-        "error": "Internal server error",
-        "message": "An unexpected error occurred. Please try again or contact support if the issue persists."
-    }), 500
+        'ollama_url': ollama_url,
+        'is_running': is_running,
+        'connection_test': connection_test,
+        'connection_error': connection_error,
+        'models': models,
+        'ollama_installed': ollama_info['installed'],
+        'ollama_version': ollama_info['version'],
+        'ollama_path': ollama_info.get('path'),
+        'platform': platform.system()
+    })
 
-@app.errorhandler(413)
-def file_too_large(error):
-    """Handle file too large errors."""
+@app.route('/api/system/status')
+def system_status():
+    """Get complete system status for setup wizard"""
+    ollama_info = check_ollama_installed()
+    is_running = check_ollama_running()
+    
+    models = []
+    if is_running:
+        models = get_installed_models()
+    
+    # Auto-mark setup complete if everything is ready
+    setup_complete = get_setting('setup_complete', 'false') == 'true'
+    if is_running and len(models) > 0:
+        setup_complete = True
+        set_setting('setup_complete', 'true')
+    
     return jsonify({
-        "error": "File too large",
-        "message": "The uploaded file is too large. Please choose a file smaller than 16MB."
-    }), 413
+        'ollama_installed': ollama_info['installed'],
+        'ollama_version': ollama_info['version'],
+        'ollama_path': ollama_info.get('path'),
+        'ollama_running': is_running,
+        'models': models,
+        'platform': platform.system().lower(),
+        'setup_complete': setup_complete
+    })
 
-@app.errorhandler(429)
-def rate_limit_exceeded(error):
-    """Handle rate limit errors."""
-    return jsonify({
-        "error": "Too many requests",
-        "message": "You're sending requests too quickly. Please wait a moment and try again."
-    }), 429
+@app.route('/api/ollama/start', methods=['POST'])
+def start_ollama():
+    """Start Ollama server"""
+    if not check_ollama_installed()['installed']:
+        return jsonify({'error': 'Ollama is not installed'}), 400
+    
+    if check_ollama_running():
+        return jsonify({'ok': True, 'message': 'Already running'})
+    
+    if start_ollama_server():
+        # Wait a bit and check if it started
+        import time
+        for _ in range(15):
+            time.sleep(1)
+            if check_ollama_running():
+                return jsonify({'ok': True, 'message': 'Started successfully'})
+        return jsonify({'error': 'Failed to start - timeout. Try running "ollama serve" manually.'}), 500
+    
+    return jsonify({'error': 'Failed to start Ollama. Try running "ollama serve" manually.'}), 500
 
-# ---------------------------
-# Main Entry Point
-# ---------------------------
-if __name__ == "__main__":
-    logger.info(f"Starting server on {Config.HOST}:{Config.PORT}")
-    logger.info(f"Using Ollama path: {Config.OLLAMA_PATH}")
-    logger.info(f"Secret key configured: {'Yes' if Config.SECRET_KEY else 'No'}")
-    logger.info(f"Debug mode: {'Enabled' if Config.DEBUG else 'Disabled'}")
-    logger.info("CSRF protection: Disabled (local AI application)")
-    app.run(
-        host=Config.HOST,
-        port=Config.PORT,
-        debug=Config.DEBUG,
-        threaded=True
+@app.route('/api/models')
+def models():
+    try:
+        data = ollama_request('/api/tags')
+        return jsonify([m['name'] for m in data.get('models', [])])
+    except Exception as e:
+        return jsonify([])  # Return empty array instead of error
+
+@app.route('/api/models/available')
+def available_models():
+    """Return a curated list of recommended models for beginners"""
+    recommended = [
+        {
+            'name': 'llama3.2:3b',
+            'display_name': 'Llama 3.2 (3B)',
+            'size': '2.0 GB',
+            'description': 'Fast and efficient. Great for everyday tasks.',
+            'category': 'recommended',
+            'speed': 'fast'
+        },
+        {
+            'name': 'llama3.2:1b',
+            'display_name': 'Llama 3.2 (1B)',
+            'size': '1.3 GB',
+            'description': 'Lightweight and quick. Perfect for basic conversations.',
+            'category': 'recommended',
+            'speed': 'fastest'
+        },
+        {
+            'name': 'llama3.1:8b',
+            'display_name': 'Llama 3.1 (8B)',
+            'size': '4.7 GB',
+            'description': 'Balanced performance. Good for most use cases.',
+            'category': 'popular',
+            'speed': 'medium'
+        },
+        {
+            'name': 'mistral:7b',
+            'display_name': 'Mistral (7B)',
+            'size': '4.1 GB',
+            'description': 'Excellent reasoning and coding abilities.',
+            'category': 'popular',
+            'speed': 'medium'
+        },
+        {
+            'name': 'gemma2:2b',
+            'display_name': 'Gemma 2 (2B)',
+            'size': '1.6 GB',
+            'description': 'Google\'s efficient model. Quick responses.',
+            'category': 'recommended',
+            'speed': 'fast'
+        },
+        {
+            'name': 'phi3:mini',
+            'display_name': 'Phi-3 Mini',
+            'size': '2.3 GB',
+            'description': 'Microsoft\'s compact powerhouse.',
+            'category': 'popular',
+            'speed': 'fast'
+        },
+        {
+            'name': 'qwen2.5:3b',
+            'display_name': 'Qwen 2.5 (3B)',
+            'size': '1.9 GB',
+            'description': 'Great multilingual support.',
+            'category': 'popular',
+            'speed': 'fast'
+        },
+        {
+            'name': 'codellama:7b',
+            'display_name': 'Code Llama (7B)',
+            'size': '3.8 GB',
+            'description': 'Specialized for coding tasks.',
+            'category': 'coding',
+            'speed': 'medium'
+        },
+        {
+            'name': 'deepseek-coder:6.7b',
+            'display_name': 'DeepSeek Coder (6.7B)',
+            'size': '3.8 GB',
+            'description': 'Excellent code generation and explanation.',
+            'category': 'coding',
+            'speed': 'medium'
+        },
+        {
+            'name': 'llava:7b',
+            'display_name': 'LLaVA (7B)',
+            'size': '4.5 GB',
+            'description': 'Can understand images! Vision + language.',
+            'category': 'vision',
+            'speed': 'medium'
+        }
+    ]
+    
+    return jsonify(recommended)
+
+@app.route('/api/models/pull', methods=['POST'])
+def pull_model():
+    """Pull/download a model from Ollama"""
+    data = request.get_json()
+    model_name = data.get('model')
+    
+    if not model_name:
+        return jsonify({'error': 'Model name required'}), 400
+    
+    # Check if Ollama is running - try a direct request
+    ollama_url = get_ollama_url()
+    try:
+        test_req = urllib.request.Request(f"{ollama_url}/api/tags", method='GET')
+        test_req.add_header('Content-Type', 'application/json')
+        with urllib.request.urlopen(test_req, timeout=5) as resp:
+            pass  # Just checking connectivity
+    except urllib.error.URLError as e:
+        return jsonify({'error': f'Cannot connect to Ollama at {ollama_url}. Make sure Ollama is running (ollama serve).'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Connection error: {str(e)}'}), 400
+    
+    # Initialize progress tracking
+    pull_id = str(uuid4())
+    model_pull_progress[pull_id] = {
+        'model': model_name,
+        'status': 'starting',
+        'progress': 0,
+        'completed': False,
+        'error': None
+    }
+    
+    def pull_in_background(pull_id, model_name):
+        try:
+            resp = ollama_request('/api/pull', 'POST', {'name': model_name, 'stream': True}, stream=True)
+            
+            for line in resp:
+                if line:
+                    try:
+                        chunk = json.loads(line.decode())
+                        status = chunk.get('status', '')
+                        
+                        if 'total' in chunk and 'completed' in chunk:
+                            total = chunk['total']
+                            completed = chunk['completed']
+                            if total > 0:
+                                model_pull_progress[pull_id]['progress'] = int((completed / total) * 100)
+                        
+                        model_pull_progress[pull_id]['status'] = status
+                        
+                        if status == 'success' or chunk.get('done', False):
+                            model_pull_progress[pull_id]['completed'] = True
+                            model_pull_progress[pull_id]['progress'] = 100
+                            break
+                    except json.JSONDecodeError:
+                        pass
+            
+            # Final check
+            model_pull_progress[pull_id]['completed'] = True
+            model_pull_progress[pull_id]['progress'] = 100
+                        
+        except Exception as e:
+            model_pull_progress[pull_id]['error'] = str(e)
+            model_pull_progress[pull_id]['status'] = 'error'
+    
+    # Start background thread
+    thread = threading.Thread(target=pull_in_background, args=(pull_id, model_name))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({'pull_id': pull_id, 'model': model_name})
+
+@app.route('/api/models/pull/<pull_id>/status')
+def pull_status(pull_id):
+    """Get the status of a model pull operation"""
+    if pull_id not in model_pull_progress:
+        return jsonify({'error': 'Pull ID not found'}), 404
+    
+    return jsonify(model_pull_progress[pull_id])
+
+@app.route('/api/models/<path:model_name>', methods=['DELETE'])
+def delete_model(model_name):
+    """Delete a model"""
+    try:
+        ollama_request('/api/delete', 'DELETE', {'name': model_name})
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/conversations')
+def list_conversations():
+    db = get_db()
+    rows = db.execute('''
+        SELECT c.*, 
+            (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
+        FROM conversations c 
+        ORDER BY updated_at DESC
+    ''').fetchall()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/conversations', methods=['POST'])
+def create_conversation():
+    db = get_db()
+    conv_id = str(uuid4())
+    now = datetime.now().isoformat()
+    data = request.get_json() or {}
+    
+    db.execute(
+        'INSERT INTO conversations (id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        (conv_id, data.get('title', 'New chat'), data.get('model'), now, now)
     )
+    db.commit()
+    return jsonify({'id': conv_id})
+
+@app.route('/api/conversations/<conv_id>')
+def get_conversation(conv_id):
+    db = get_db()
+    conv = db.execute('SELECT * FROM conversations WHERE id = ?', (conv_id,)).fetchone()
+    if not conv:
+        return jsonify({'error': 'Not found'}), 404
+    
+    messages = db.execute(
+        'SELECT role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at',
+        (conv_id,)
+    ).fetchall()
+    
+    return jsonify({
+        **dict(conv),
+        'messages': [dict(m) for m in messages]
+    })
+
+@app.route('/api/conversations/<conv_id>', methods=['PATCH'])
+def update_conversation(conv_id):
+    db = get_db()
+    data = request.get_json()
+    
+    if 'title' in data:
+        db.execute('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?',
+                   (data['title'], datetime.now().isoformat(), conv_id))
+        db.commit()
+    
+    return jsonify({'ok': True})
+
+@app.route('/api/conversations/<conv_id>', methods=['DELETE'])
+def delete_conversation(conv_id):
+    db = get_db()
+    db.execute('DELETE FROM messages WHERE conversation_id = ?', (conv_id,))
+    db.execute('DELETE FROM conversations WHERE id = ?', (conv_id,))
+    db.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/conversations/<conv_id>/messages')
+def get_messages(conv_id):
+    db = get_db()
+    messages = db.execute(
+        'SELECT role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at',
+        (conv_id,)
+    ).fetchall()
+    return jsonify([dict(m) for m in messages])
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    data = request.get_json()
+    conv_id = data.get('conversation_id')
+    message = data.get('message', '').strip()
+    model = data.get('model')
+    
+    if not all([conv_id, message, model]):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    db = get_db()
+    now = datetime.now().isoformat()
+    
+    db.execute(
+        'INSERT INTO messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)',
+        (conv_id, 'user', message, now)
+    )
+    db.execute('UPDATE conversations SET model = ?, updated_at = ? WHERE id = ?', (model, now, conv_id))
+    db.commit()
+    
+    history = db.execute(
+        'SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY created_at',
+        (conv_id,)
+    ).fetchall()
+    
+    # Build messages array for chat API
+    messages_list = []
+    for msg in history:
+        messages_list.append({
+            'role': msg['role'],
+            'content': msg['content']
+        })
+    
+    # Store values we need in the generator
+    db_path = app.config['DATABASE']
+    ollama_url = get_ollama_url()
+    
+    def generate():
+        full_response = []
+        stats = {}
+        start_time = datetime.now()
+        
+        try:
+            # Make request to Ollama
+            url = f"{ollama_url}/api/chat"
+            req = urllib.request.Request(url, method='POST')
+            req.add_header('Content-Type', 'application/json')
+            body = json.dumps({
+                'model': model, 
+                'messages': messages_list, 
+                'stream': True
+            }).encode()
+            
+            resp = urllib.request.urlopen(req, body, timeout=300)
+            
+            for line in resp:
+                if line:
+                    chunk = json.loads(line.decode())
+                    if 'message' in chunk and 'content' in chunk['message']:
+                        text = chunk['message']['content']
+                        full_response.append(text)
+                        yield f"data: {json.dumps({'text': text})}\n\n"
+                    
+                    if chunk.get('done'):
+                        # Extract stats from the final chunk
+                        stats = {
+                            'total_duration': chunk.get('total_duration', 0),
+                            'load_duration': chunk.get('load_duration', 0),
+                            'prompt_eval_count': chunk.get('prompt_eval_count', 0),
+                            'prompt_eval_duration': chunk.get('prompt_eval_duration', 0),
+                            'eval_count': chunk.get('eval_count', 0),
+                            'eval_duration': chunk.get('eval_duration', 0),
+                        }
+                        break
+            
+            # Calculate derived stats
+            eval_duration_sec = stats.get('eval_duration', 0) / 1e9  # nanoseconds to seconds
+            eval_count = stats.get('eval_count', 0)
+            tokens_per_sec = eval_count / eval_duration_sec if eval_duration_sec > 0 else 0
+            total_duration_sec = stats.get('total_duration', 0) / 1e9
+            
+            # Calculate actual elapsed time as fallback
+            elapsed = (datetime.now() - start_time).total_seconds()
+            if total_duration_sec == 0:
+                total_duration_sec = elapsed
+            
+            final_stats = {
+                'tokens': eval_count,
+                'tokens_per_sec': round(tokens_per_sec, 1),
+                'duration': round(total_duration_sec, 2),
+                'prompt_tokens': stats.get('prompt_eval_count', 0),
+            }
+            
+            # Save to database using a fresh connection
+            complete = ''.join(full_response)
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.execute(
+                    'INSERT INTO messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)',
+                    (conv_id, 'assistant', complete, datetime.now().isoformat())
+                )
+                
+                # Auto-title for first message
+                msg_count = conn.execute(
+                    'SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ?', 
+                    (conv_id,)
+                ).fetchone()['cnt']
+                
+                if msg_count == 2:  # User + Assistant
+                    title = message[:50] + ('...' if len(message) > 50 else '')
+                    conn.execute('UPDATE conversations SET title = ? WHERE id = ?', (title, conv_id))
+                
+                conn.commit()
+            finally:
+                conn.close()
+            
+            yield f"data: {json.dumps({'done': True, 'stats': final_stats})}\n\n"
+            
+        except urllib.error.URLError as e:
+            yield f"data: {json.dumps({'error': 'Cannot connect to Ollama. Make sure it is running.'})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    
+    return Response(generate(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache', 
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive'
+    })
+
+@app.route('/api/search')
+def search():
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify([])
+    
+    db = get_db()
+    results = db.execute('''
+        SELECT m.conversation_id, m.content, m.role, c.title
+        FROM messages m
+        JOIN conversations c ON c.id = m.conversation_id
+        WHERE m.content LIKE ?
+        ORDER BY m.created_at DESC
+        LIMIT 20
+    ''', (f'%{q}%',)).fetchall()
+    
+    return jsonify([dict(r) for r in results])
+
+@app.route('/api/export/<conv_id>')
+def export_conversation(conv_id):
+    db = get_db()
+    conv = db.execute('SELECT * FROM conversations WHERE id = ?', (conv_id,)).fetchone()
+    if not conv:
+        return jsonify({'error': 'Not found'}), 404
+    
+    messages = db.execute(
+        'SELECT role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at',
+        (conv_id,)
+    ).fetchall()
+    
+    md = f"# {conv['title']}\n\n"
+    md += f"*Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n\n---\n\n"
+    
+    for msg in messages:
+        role = '**You**' if msg['role'] == 'user' else '**Assistant**'
+        md += f"{role}\n\n{msg['content']}\n\n---\n\n"
+    
+    return Response(md, mimetype='text/markdown', headers={
+        'Content-Disposition': f'attachment; filename="{conv["title"][:30]}.md"'
+    })
+
+if __name__ == '__main__':
+    print('Server running at http://localhost:5000')
+    app.run(host='127.0.0.1', port=5000, debug=True)

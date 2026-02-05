@@ -1,262 +1,391 @@
 <!DOCTYPE html>
-<html lang="en" class="theme-futuristic">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Local AI GUI</title>
+  <title>Local AI — Your Private AI Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
-  <!-- Highlight.js CSS for syntax highlighting -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
-  <!-- Include Marked.js for Markdown parsing -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
-  <!-- Include Highlight.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-  <!-- Include Three.js for futuristic 3D cube -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- Include Font Awesome for icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-  <!-- Futuristic 3D Cube Canvas (background element) -->
-  <canvas id="futuristicCube" aria-hidden="true"></canvas>
-
-  <!-- Notification Toast -->
-  <div id="toast" class="toast" role="alert" aria-live="polite"></div>
-
-  <div class="navbar">
-    <div class="left-nav">
-      <div class="avatar" role="img" aria-label="AI Assistant Avatar">R1</div>
-      <h1>Local AI Chat</h1>
-      <div class="donation-links">
-        <a href="https://paypal.me/l8rontop" target="_blank" aria-label="Donate via PayPal">
-          <i class="fas fa-heart"></i> Donate
-        </a>
-        <a href="https://x.com/qusaismael" target="_blank" aria-label="Follow on Twitter">
-          <i class="fab fa-twitter"></i> Twitter
-        </a>
+  <!-- Setup Wizard Overlay -->
+  <div class="setup-wizard" id="setupWizard">
+    <div class="setup-container">
+      <div class="setup-header">
+        <div class="setup-logo">
+          <svg viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="2"/>
+            <path d="M24 12v12l8 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="24" cy="24" r="4" fill="currentColor"/>
+          </svg>
+        </div>
+        <h1>Welcome to Local AI</h1>
+        <p>Let's get you set up with your own private AI assistant</p>
       </div>
-      <!-- Theme Selector -->
-      <div class="theme-selector">
-        <label for="themeSelect">Theme:</label>
-        <select id="themeSelect" aria-label="Select theme">
-          <option value="theme-purple-dark">Dark Mode</option>
-          <option value="theme-futuristic" selected>Light Mode</option>
-        </select>
+      
+      <div class="setup-progress">
+        <div class="progress-step active" data-step="1">
+          <div class="step-circle">1</div>
+          <span>Check Setup</span>
+        </div>
+        <div class="progress-line"></div>
+        <div class="progress-step" data-step="2">
+          <div class="step-circle">2</div>
+          <span>Install Ollama</span>
+        </div>
+        <div class="progress-line"></div>
+        <div class="progress-step" data-step="3">
+          <div class="step-circle">3</div>
+          <span>Download Model</span>
+        </div>
+        <div class="progress-line"></div>
+        <div class="progress-step" data-step="4">
+          <div class="step-circle">4</div>
+          <span>Ready!</span>
+        </div>
+      </div>
+
+      <!-- Step 1: Check Status -->
+      <div class="setup-step active" id="step1">
+        <div class="step-content">
+          <div class="status-card checking">
+            <div class="status-spinner"></div>
+            <h3>Checking your system...</h3>
+            <p>We're checking if Ollama is installed and running</p>
+          </div>
+          
+          <div class="status-results" id="statusResults" style="display: none;">
+            <div class="status-item" id="statusInstalled">
+              <div class="status-icon"></div>
+              <div class="status-info">
+                <strong>Ollama Installation</strong>
+                <span class="status-text"></span>
+              </div>
+            </div>
+            <div class="status-item" id="statusRunning">
+              <div class="status-icon"></div>
+              <div class="status-info">
+                <strong>Ollama Server</strong>
+                <span class="status-text"></span>
+              </div>
+            </div>
+            <div class="status-item" id="statusModels">
+              <div class="status-icon"></div>
+              <div class="status-info">
+                <strong>AI Models</strong>
+                <span class="status-text"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn-setup-primary" id="step1Next">Continue</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Install Ollama -->
+      <div class="setup-step" id="step2">
+        <div class="step-content">
+          <div class="install-hero">
+            <div class="install-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </div>
+            <h3>Install Ollama</h3>
+            <p>Ollama lets you run AI models locally on your computer. Your data stays private!</p>
+          </div>
+
+          <div class="install-instructions" id="installInstructions">
+            <!-- Populated by JS based on platform -->
+          </div>
+
+          <div class="install-already" id="installAlready" style="display: none;">
+            <div class="success-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <span>Ollama is already installed!</span>
+            </div>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn-setup-secondary" id="step2Back">Back</button>
+          <button class="btn-setup-primary" id="step2Check">I've installed it — Check again</button>
+          <button class="btn-setup-primary" id="step2Skip" style="display: none;">Continue</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Download Model -->
+      <div class="setup-step" id="step3">
+        <div class="step-content">
+          <div class="model-header">
+            <h3>Choose your first AI model</h3>
+            <p>Pick a model to download. Don't worry, you can add more later!</p>
+          </div>
+
+          <div class="model-categories">
+            <button class="category-btn active" data-category="recommended">⭐ Recommended</button>
+            <button class="category-btn" data-category="popular">🔥 Popular</button>
+            <button class="category-btn" data-category="coding">💻 Coding</button>
+          </div>
+
+          <div class="model-grid" id="modelGrid">
+            <!-- Populated by JS -->
+          </div>
+
+          <div class="download-progress" id="downloadProgress" style="display: none;">
+            <div class="download-card">
+              <div class="download-header">
+                <span class="download-model-name"></span>
+                <span class="download-percent">0%</span>
+              </div>
+              <div class="download-bar">
+                <div class="download-fill"></div>
+              </div>
+              <p class="download-status">Starting download...</p>
+            </div>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn-setup-secondary" id="step3Back">Back</button>
+          <button class="btn-setup-primary" id="step3Download" disabled>Select a model to continue</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Ready -->
+      <div class="setup-step" id="step4">
+        <div class="step-content center">
+          <div class="ready-animation">
+            <svg class="ready-icon" viewBox="0 0 64 64" fill="none">
+              <circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="2"/>
+              <path class="checkmark" d="M20 32l8 8 16-16" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h3>You're all set!</h3>
+          <p>Your private AI assistant is ready. All conversations stay on your computer.</p>
+          
+          <div class="ready-tips">
+            <div class="tip">
+              <span class="tip-icon">💬</span>
+              <span>Start chatting by typing a message below</span>
+            </div>
+            <div class="tip">
+              <span class="tip-icon">🔒</span>
+              <span>Your data never leaves your device</span>
+            </div>
+            <div class="tip">
+              <span class="tip-icon">⚡</span>
+              <span>Works offline once models are downloaded</span>
+            </div>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn-setup-primary large" id="startChatting">Start Chatting</button>
+        </div>
       </div>
     </div>
-    <div class="right-nav">
-      <!-- Date/Time Display -->
-      <div class="datetime" id="datetimeDisplay" aria-label="Current date and time"></div>
-      <div class="model-selector-group">
-        <select id="modelSelect" aria-label="Select AI model">
-          {% for model in models %}
-            <option value="{{ model }}">{{ model }}</option>
-          {% endfor %}
-        </select>
-        <button id="manageModelsBtn" class="icon-btn" aria-label="Manage models" title="Manage Models">
-          <i class="fas fa-cogs"></i>
+  </div>
+
+  <!-- Main App -->
+  <div class="layout" id="mainApp" style="display: none;">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="brand">
+          <svg class="brand-icon" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M16 8v8l5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="16" cy="16" r="2.5" fill="currentColor"/>
+          </svg>
+          <span>Local AI</span>
+        </div>
+        <button class="btn-new" id="newChat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14"/></svg>
+          New chat
         </button>
       </div>
-      <button id="newChatBtn" aria-label="Create new chat">
-        <i class="fas fa-plus"></i> New Chat
-      </button>
-    </div>
-  </div>
 
-  <div class="main-container">
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <h2>Chats</h2>
-        <div class="sidebar-controls">
-          <button id="searchBtn" class="icon-btn" aria-label="Search chats" title="Search">
-            <i class="fas fa-search"></i>
-          </button>
-          <button id="exportBtn" class="icon-btn" aria-label="Export chats" title="Export">
-            <i class="fas fa-download"></i>
-          </button>
-          <button id="importBtn" class="icon-btn" aria-label="Import chats" title="Import">
-            <i class="fas fa-upload"></i>
-          </button>
-        </div>
-      </div>
-      
-      <!-- Search Section -->
-      <div id="searchSection" class="search-section" style="display: none;">
-        <div class="search-input-group">
-          <input type="text" id="searchInput" placeholder="Search messages..." aria-label="Search messages">
-          <button id="searchExecuteBtn" aria-label="Execute search">
-            <i class="fas fa-search"></i>
-          </button>
-        </div>
-        <div id="searchResults" class="search-results"></div>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="searchInput" placeholder="Search conversations...">
       </div>
 
-      <!-- Chat List -->
-      <ul id="chatList" role="list" aria-label="Chat conversations">
-        <!-- Chat list items will be populated here -->
-      </ul>
+      <nav class="conversations" id="conversationList"></nav>
 
-      <!-- Statistics Panel -->
-      <div class="stats-panel">
-        <h3>Statistics</h3>
-        <div class="stat-item">
-          <span class="stat-label">Total Chats:</span>
-          <span id="totalChats" class="stat-value">0</span>
+      <div class="sidebar-bottom">
+        <div class="connection" id="connectionStatus">
+          <span class="dot"></span>
+          <span class="text">Checking...</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">Total Messages:</span>
-          <span id="totalMessages" class="stat-value">0</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Active Model:</span>
-          <span id="activeModel" class="stat-value">-</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Custom Models:</span>
-          <span id="customModels" class="stat-value">0</span>
-        </div>
+        <button class="btn-settings" id="openSettings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          Settings
+        </button>
       </div>
-    </div>
+    </aside>
 
-    <div class="chat-layout">
-      <div class="chat-header">
-        <h2 id="chatTitle">Chat</h2>
-        <div class="chat-controls">
-          <button id="clearChatBtn" class="icon-btn" aria-label="Clear current chat" title="Clear Chat">
-            <i class="fas fa-trash"></i>
+    <main class="main">
+      <header class="header">
+        <div class="header-left">
+          <button class="btn-icon mobile-menu" id="mobileMenu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
-          <button id="copyChatBtn" class="icon-btn" aria-label="Copy chat content" title="Copy Chat">
-            <i class="fas fa-copy"></i>
+          <h1 class="title" id="chatTitle">New chat</h1>
+          <button class="btn-icon btn-edit" id="editTitle" title="Rename">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
         </div>
-      </div>
-      
-      <div class="chat-window" id="chatWindow" role="log" aria-live="polite" aria-label="Chat messages">
-        <div class="welcome-message">
-          <div class="welcome-content">
-            <i class="fas fa-robot welcome-icon"></i>
-            <h3>Welcome to Local AI Chat!</h3>
-            <p>Start a conversation with your local AI model. Type your message below and press Enter or click Send.</p>
-            <div class="welcome-features">
-              <div class="feature-item">
-                <i class="fas fa-search"></i>
-                <span>Search chat history</span>
-              </div>
-              <div class="feature-item">
-                <i class="fas fa-download"></i>
-                <span>Export/Import chats</span>
-              </div>
-              <div class="feature-item">
-                <i class="fas fa-cogs"></i>
-                <span>Add custom models</span>
-              </div>
-            </div>
+        <div class="header-right">
+          <select class="model-select" id="modelSelect">
+            <option value="">Select model</option>
+          </select>
+          <button class="btn-icon" id="manageModels" title="Manage models">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+          </button>
+          <button class="btn-icon" id="exportChat" title="Export">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button class="btn-icon btn-danger" id="deleteChat" title="Delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="messages" id="messages">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">
+            <svg viewBox="0 0 64 64" fill="none">
+              <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M32 18v14l9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="32" cy="32" r="4" fill="currentColor" opacity="0.3"/>
+            </svg>
           </div>
-        </div>
-      </div>
-      
-      <div class="input-area">
-        <div class="input-wrapper">
-          <textarea 
-            id="userInput" 
-            placeholder="Type your message here..." 
-            aria-label="Message input"
-            rows="2"
-            maxlength="10000"
-          ></textarea>
-          <div class="input-controls">
-            <button id="sendBtn" aria-label="Send message" disabled>
-              <i class="fas fa-paper-plane"></i>
+          <h2>Start a conversation</h2>
+          <p>Select a model above and type your message below to begin</p>
+          <div class="quick-prompts">
+            <button class="quick-prompt" data-prompt="Explain quantum computing in simple terms">
+              <span>🔬</span> Explain quantum computing
             </button>
-            <div class="char-counter">
-              <span id="charCount">0</span>/10000
-            </div>
+            <button class="quick-prompt" data-prompt="Write a short poem about technology">
+              <span>✨</span> Write a poem
+            </button>
+            <button class="quick-prompt" data-prompt="Help me brainstorm ideas for a weekend project">
+              <span>💡</span> Brainstorm ideas
+            </button>
           </div>
         </div>
       </div>
-    </div>
+
+      <form class="input-area" id="chatForm">
+        <div class="input-container">
+          <textarea id="messageInput" placeholder="Type a message..." rows="1"></textarea>
+          <button type="submit" class="btn-send" id="sendBtn" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 2L11 13"/>
+              <path d="M22 2L15 22L11 13L2 9L22 2Z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="input-hint">
+          <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> new line · <kbd>⌘+Shift+N</kbd> new chat
+        </div>
+      </form>
+    </main>
   </div>
 
-  <!-- Hidden file input for import -->
-  <input type="file" id="fileInput" accept=".json" style="display: none;" aria-label="Select file to import">
-
-  <!-- Loading overlay -->
-  <div id="loadingOverlay" class="loading-overlay" style="display: none;" aria-hidden="true">
-    <div class="loading-spinner">
-      <i class="fas fa-spinner fa-spin"></i>
-      <p>Processing...</p>
-    </div>
-  </div>
-
-  <!-- Confirmation Modal -->
-  <div id="confirmModal" class="modal" style="display: none;" role="dialog" aria-labelledby="modalTitle" aria-describedby="modalMessage">
+  <!-- Settings Modal -->
+  <div class="modal" id="settingsModal">
+    <div class="modal-backdrop"></div>
     <div class="modal-content">
-      <h3 id="modalTitle">Confirm Action</h3>
-      <p id="modalMessage">Are you sure you want to proceed?</p>
-      <div class="modal-buttons">
-        <button id="modalCancel" class="btn-secondary">Cancel</button>
-        <button id="modalConfirm" class="btn-primary">Confirm</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Model Management Modal -->
-  <div id="modelManagementModal" class="modal" style="display: none;" role="dialog" aria-labelledby="modelModalTitle">
-    <div class="modal-content model-management-content">
       <div class="modal-header">
-        <h3 id="modelModalTitle">Manage Models</h3>
-        <button id="closeModelModal" class="close-btn" aria-label="Close modal">
-          <i class="fas fa-times"></i>
+        <h2>Settings</h2>
+        <button class="btn-icon modal-close" id="closeSettings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
-      
       <div class="modal-body">
-        <!-- Add Model Section -->
-        <div class="model-section">
-          <h4>Add Custom Model</h4>
-          <p class="help-text">Add models that you have pulled with Ollama. Make sure to run <code>ollama pull &lt;model-name&gt;</code> first.</p>
-          <div class="add-model-form">
-            <input 
-              type="text" 
-              id="modelNameInput" 
-              placeholder="Enter model name (e.g., codellama:7b)" 
-              aria-label="Model name input"
-              maxlength="100"
-            >
-            <button id="addModelBtn" class="btn-primary">
-              <i class="fas fa-plus"></i> Add Model
-            </button>
+        <div class="setting-group">
+          <label for="ollamaUrl">Ollama URL</label>
+          <input type="text" id="ollamaUrl" placeholder="http://localhost:11434">
+          <p class="setting-hint">The address where Ollama is running. Default is localhost:11434</p>
+        </div>
+        <div class="setting-divider"></div>
+        <div class="setting-group">
+          <label>Connection Status</label>
+          <div class="setting-status" id="settingsStatus">
+            <span class="status-dot"></span>
+            <span class="status-text">Checking...</span>
           </div>
         </div>
-
-        <!-- Current Models Section -->
-        <div class="model-section">
-          <h4>Your Models</h4>
-          <div id="modelsList" class="models-list">
-            <!-- Models will be populated here -->
-          </div>
-        </div>
-
-        <!-- Available Models from Ollama -->
-        <div class="model-section">
-          <h4>Available in Ollama</h4>
-          <p class="help-text">Models currently available in your Ollama installation.</p>
-          <button id="refreshOllamaModels" class="btn-secondary">
-            <i class="fas fa-sync"></i> Refresh List
+        <div class="setting-group">
+          <label>Quick Actions</label>
+          <button class="btn-action" id="restartOllama">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+            Start/Restart Ollama
           </button>
-          <div id="ollamaModelsList" class="ollama-models-list">
-            <!-- Ollama models will be populated here -->
+          <button class="btn-action" id="runSetupAgain">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+            Run Setup Wizard
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancelSettings">Cancel</button>
+        <button class="btn-primary" id="saveSettings">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model Manager Modal -->
+  <div class="modal" id="modelModal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2>Manage Models</h2>
+        <button class="btn-icon modal-close" id="closeModelModal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="model-tabs">
+          <button class="model-tab active" data-tab="installed">Installed</button>
+          <button class="model-tab" data-tab="available">Download New</button>
+        </div>
+        
+        <div class="model-tab-content active" id="installedModelsTab">
+          <div class="installed-models-list" id="installedModelsList">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        
+        <div class="model-tab-content" id="availableModelsTab">
+          <div class="available-categories">
+            <button class="category-btn active" data-category="recommended">⭐ Recommended</button>
+            <button class="category-btn" data-category="popular">🔥 Popular</button>
+            <button class="category-btn" data-category="coding">💻 Coding</button>
+            <button class="category-btn" data-category="vision">👁️ Vision (Upcoming)</button>
+          </div>
+          <div class="available-models-list" id="availableModelsList">
+            <!-- Populated by JS -->
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      hljs.highlightAll();
-    });
-  </script>
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>

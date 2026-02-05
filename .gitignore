@@ -1,0 +1,92 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ===== Virtual Environments =====
+env/
+venv/
+ENV/
+.venv/
+locallm/
+
+# ===== Flask =====
+instance/
+flask_session/
+.webassets-cache
+
+# ===== Database =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== Uploads & User Data =====
+uploads/
+static/uploads/
+
+# ===== IDE & Editors =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# ===== OS Generated =====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ===== Logs =====
+*.log
+logs/
+log/
+
+# ===== Environment Variables =====
+.env
+.env.local
+.env.*.local
+
+# ===== Testing =====
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# ===== Misc =====
+*.bak
+*.tmp
+*.temp
+.cache/
